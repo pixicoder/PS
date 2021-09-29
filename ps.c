@@ -1,6 +1,6 @@
 /*
     ps.cpp
-    Soft synth + Score
+    Single file soft synth + demo song
     Copyright (C) 2005 - 2021 Alexander Zolotov <nightradio@gmail.com>
     WarmPlace.ru
 */
