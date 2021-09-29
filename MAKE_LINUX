@@ -1,0 +1,1 @@
+make CFLAGS="-O3" LDFLAGS="" LIBS="-lm -lSDL2"

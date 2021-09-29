@@ -1,0 +1,7 @@
+v1.1 (2021):
+* SDL port;
+* export to WAV;
+* minor changes;
+* bug fixes.
+v1.0 (2005):
+* initial release.
