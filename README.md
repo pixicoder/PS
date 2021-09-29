@@ -1,7 +1,7 @@
 **P.S.** is a music track written from scratch using the C programming language.
-One single source file includes the synth code and the patterns.
-No third party libraries are used for synthesis.
-SDL2 is required to output the audio stream.
+All sounds and notes were entered manually without using any music programs.
+One single source file contains synth code, patterns and player.
+No third party libraries are used except SDL2 to output the audio stream.
 
 Usage:
 * just play the song: `./ps`
