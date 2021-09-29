@@ -1,5 +1,5 @@
 /*
-    ps.cpp
+    ps.c
     Single file synth + demo song
     Copyright (C) 2005 - 2021 Alexander Zolotov <nightradio@gmail.com>
     WarmPlace.ru
