@@ -15,6 +15,7 @@
 #include "SDL2/SDL.h"
 
 #if defined(_WIN32) || defined(_WIN64)
+    #include <windows.h>
     #define sleep(sec) Sleep(1000*(sec))
 #else
     #include <unistd.h> //sleep()
