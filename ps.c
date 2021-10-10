@@ -10,10 +10,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <signal.h>
 #include <math.h>
 #include "SDL2/SDL.h"
+
+#if defined(_WIN32) || defined(_WIN64)
+    #define sleep(sec) Sleep(1000*(sec))
+#else
+    #include <unistd.h> //sleep()
+#endif
 
 #define one_tick_size (int)6000
 #define chan_num (int)8 //Number of channels (synth tracks)
