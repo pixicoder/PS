@@ -1158,11 +1158,29 @@ float bound = 0.05;
 int offset = 0;
 
 
-void playPad ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+struct PlayState {
+    
+    bool tick_changed;
+
+    uint8_t note;
+    
+    int channel;
+    int frame;
+    
+    float * buffer;
+    float * right;
+    float * left;
+};
+
+
+void playPad ( struct PlayState * state ){
+
+    int channel = state -> channel;
+    uint8_t note = state -> note;
 
     float res1 , res2;
 
-    if( tick_changed ){
+    if( state -> tick_changed ){
 
         if( note ){
             effect_timer1[ channel ] = 1;
@@ -1213,16 +1231,21 @@ void playPad ( float * buffer , uint8_t note , int channel , int frame , bool ti
     res1 = 0;
     res2 = 0;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
 
 
-void playPoly ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+void playPoly ( struct PlayState * state ){
+
+    uint8_t note = state -> note;
+    int channel = state -> channel;
+    int frame = state -> frame;
+    float * buffer = state -> buffer;
     
     float res1 , res2;
 
-    if( tick_changed )
+    if( state -> tick_changed )
         if( note ){
             effect_timer1[ channel ] = 1;
             bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
@@ -1258,15 +1281,20 @@ void playPoly ( float * buffer , uint8_t note , int channel , int frame , bool t
     res1 = 0;
     res2 = 0;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
 
-void playEffect ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+void playEffect ( struct PlayState * state ){
+
+    uint8_t note = state -> note;
+    int channel = state -> channel;
+    int frame = state -> frame;
+    float * buffer = state -> buffer;
 
     float res1 , res2;
 
-    if( tick_changed ){
+    if( state -> tick_changed ){
 
         uint8_t l = note;
 
@@ -1341,15 +1369,20 @@ void playEffect ( float * buffer , uint8_t note , int channel , int frame , bool
     res1 = 0;
     res2 = 0;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
 
-void playAcidBass ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+void playAcidBass ( struct PlayState * state ){
+
+    uint8_t note = state -> note;
+    int channel = state -> channel;
+    int frame = state -> frame;
+    float * buffer = state -> buffer;
 
     float res1 , res2;
 
-    if( tick_changed ){
+    if( state -> tick_changed ){
         
         bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
         bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
@@ -1398,16 +1431,21 @@ void playAcidBass ( float * buffer , uint8_t note , int channel , int frame , bo
     buffer[ ( frame << 1 ) + 1 ] += res2;
     buffer[ ( frame << 1 ) + 0 ] += res1;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
 
 
-void playBass ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+void playBass ( struct PlayState * state ){
+
+    uint8_t note = state -> note;
+    int channel = state -> channel;
+    int frame = state -> frame;
+    float * buffer = state -> buffer;
 
     float res1 , res2;
 
-    if( tick_changed ){
+    if( state -> tick_changed ){
         bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
         bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
         bass_timer[ channel ] = 0;
@@ -1472,16 +1510,21 @@ void playBass ( float * buffer , uint8_t note , int channel , int frame , bool t
     buffer[ ( frame << 1 ) + 1 ] += res2;
     buffer[ ( frame << 1 ) + 0 ] += res1;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
 
 
-void playHat ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+void playHat ( struct PlayState * state ){
+
+    uint8_t note = state -> note;
+    int channel = state -> channel;
+    int frame = state -> frame;
+    float * buffer = state -> buffer;
 
     float res1 , res2;
 
-    if( tick_changed ){
+    if( state -> tick_changed ){
 
         if( note )
             hat_timer[ channel ] = 2;
@@ -1498,7 +1541,7 @@ void playHat ( float * buffer , uint8_t note , int channel , int frame , bool ti
         }
 
         if( note == 252 )
-            offset --;
+            offset--;
     }
 
     if( note == 254 )
@@ -1550,16 +1593,21 @@ void playHat ( float * buffer , uint8_t note , int channel , int frame , bool ti
     buffer[ ( frame << 1 ) + 0 ] += res1 / 1.8;
     buffer[ ( frame << 1 ) + 1 ] += res2 / 1.8;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
 
 
-void playDrum ( float * buffer , uint8_t note , int channel , int frame , bool tick_changed , float * left , float * right ){
+void playDrum ( struct PlayState * state ){ 
+
+    uint8_t note = state -> note;
+    int channel = state -> channel;
+    int frame = state -> frame;
+    float * buffer = state -> buffer;
 
     float res1 , res2;
 
-    if( tick_changed )
+    if( state -> tick_changed )
         if( note ){
             drum_timer1[ channel ] = 1;
             drum_timer2[ channel ] = 0;
@@ -1578,17 +1626,15 @@ void playDrum ( float * buffer , uint8_t note , int channel , int frame , bool t
 
     float drum_ratio = drum_timer2[ channel ] / drum_timer3[ channel ];
 
-    float l = note;
-
     res2 = res1 = 
-        sinf( ( l / 70) * drum_ratio ) *
+        sinf( ( note / 70) * drum_ratio ) *
         drum_timer1[ channel ] * 
-        ( l / 20.0F ) ;
+        ( note / 20.0F ) ;
 
     float d2 = 
         sinf( drum_ratio + 2 ) *
         drum_timer1[ channel ] * 
-        ( l / 120.0F ) ;
+        ( note / 120.0F ) ;
 
     if( tick & 1 ){
         res1 *= 0.3f;
@@ -1610,9 +1656,21 @@ void playDrum ( float * buffer , uint8_t note , int channel , int frame , bool t
     res1 = 0;
     res2 = 0;
 
-    * left = res1;
-    * right = res2;
+    * (state -> left) = res1;
+    * (state -> right) = res2;
 }
+
+
+void ( * Instruments [] )( struct PlayState * ) = {
+    playDrum ,
+    playHat ,
+    playBass ,
+    playBass ,
+    playAcidBass ,
+    playEffect ,
+    playPoly ,
+    playPad
+};
 
 
 void play ( float * buffer , int length ){
@@ -1669,108 +1727,18 @@ void play ( float * buffer , int length ){
 
             if( syn[ channel ] == 0 )
                 continue;
-            
 
-            switch( syn[ channel ] ){
-            case SYNTH_PAD : 
 
-                playPad(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-                
-                break;
-            case SYNTH_POLY :
+            struct PlayState state;
+            state.tick_changed = tick_changed;
+            state.channel = channel;
+            state.buffer = buffer;
+            state.frame = a;
+            state.right = & res2;
+            state.left = & res1;
+            state.note = row[ channel ];
 
-                playPoly(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-
-                break;
-            case SYNTH_EFFECT :
-
-                playEffect(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-                
-                break;
-            case SYNTH_ACID_BASS:
-
-                playAcidBass(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-                
-                break;
-            case SYNTH_BASS_TINY :
-            case SYNTH_BASS :
-
-                playBass(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-
-                
-                
-                break;
-            case SYNTH_HAT :
-
-                playHat(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-
-                
-
-                break;
-            case SYNTH_DRUM :
-
-                playDrum(
-                    buffer ,
-                    row[ channel ] ,
-                    channel ,
-                    a ,
-                    tick_changed ,
-                    & res1 ,
-                    & res2
-                );
-
-                
-                
-                break;
-            }
+            ( * Instruments[channel] )( & state );
         }
 
         getEcho( & res1 , & res2 );
