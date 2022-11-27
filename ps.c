@@ -83,6 +83,18 @@ int randomize (){
 #define ranged( value , range ) \
     limit((value),-(range),(range))
 
+#define square( value ) \
+    pow(2,(value))
+
+#define constrict( value , threshold , limit ){ \
+                                                \
+    if((value) > + (threshold))                 \
+        (value) = + (limit);                    \
+                                                \
+    if((value) < - (threshold))                 \
+        (value) = - (limit);                    \
+}
+
 
 /*
  *  Note Patterns
@@ -1173,18 +1185,38 @@ struct PlayState {
 };
 
 
+#define setFrame( Left , Right ){   \
+                                    \
+    * (state -> right) = (Right);   \
+    * (state -> left) = (Left);     \
+}
+
+#define addChannel( offset , value ){                   \
+                                                        \
+    int index = ( (state -> frame) << 1 ) + (offset);   \
+                                                        \
+    (state -> buffer)[ index ] += (value);              \
+}
+
+#define addBuffer( left , right ){  \
+                                    \
+    addChannel(0,left);             \
+    addChannel(1,right);            \
+}
+
+
 void playPad ( struct PlayState * state ){
 
     int channel = state -> channel;
     uint8_t note = state -> note;
 
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed ){
 
         if( note ){
             effect_timer1[ channel ] = 1;
-            bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
+            bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
             bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
             bass_timer[ channel ] = 0;
         }
@@ -1207,32 +1239,28 @@ void playPad ( struct PlayState * state ){
         
         float bass = bass_timer[channel];
 
-        res2 = res1 = cos( bass * 0.99 );
+        right = left = cos( bass * 0.99 );
 
-        res1 += 
-            sin( bass * (sin( effect_timer1[ channel ] ) * 0.02) ) *
+        left += 
+            sin( bass * 0.02 * sin( effect_timer1[ channel ] ) ) *
             sin( bass );
         
-        res2 += cos( bass * 1.01 );
+        right += cos( bass * 1.01 );
         
-        res1 = limit(res1,-1,1);
-        res2 = limit(res2,-1,1);
+        right = limit(right,-1,1);
+        left = limit(left,-1,1);
 
     } else {
-        res1 = 0;
-        res2 = 0;
+        left = 0;
+        right = 0;
     }
 
     putEcho( 
-        res1 / 8 ,
-        res2 / 8
+        left / 8 ,
+        right / 8
     );
-    
-    res1 = 0;
-    res2 = 0;
 
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(0,0)
 }
 
 
@@ -1240,15 +1268,13 @@ void playPoly ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
-    int frame = state -> frame;
-    float * buffer = state -> buffer;
     
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed )
         if( note ){
             effect_timer1[ channel ] = 1;
-            bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
+            bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
             bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
             bass_timer[ channel ] = 0;
         }
@@ -1260,39 +1286,35 @@ void playPoly ( struct PlayState * state ){
         bass_delta[ channel ] += ( bass_tdelta[ channel ] - bass_delta[ channel ] ) / 1800;
         bass_timer[ channel ] += bass_delta[ channel ];
         
-        res2 = res1 = effect_timer1[ channel ];
+        right = left = effect_timer1[ channel ];
 
-        res1 *= sin( bass_timer[ channel ] );
-        res2 *= sin( bass_timer[ channel ] * 1.01 );
+        left *= sin( bass_timer[ channel ] );
+        right *= sin( bass_timer[ channel ] * 1.01 );
     
     } else {
-        res1 = 0;
-        res2 = 0;
+        left = 0;
+        right = 0;
     }
 
-    buffer[ ( frame << 1 ) + 1 ] += res2 / 8;
-    buffer[ ( frame << 1 ) + 0 ] += res1 / 8;
-
-    putEcho( 
-        res1 / 4 , 
-        res2 / 4 
+    addBuffer(
+        left / 8 , 
+        right / 8
     );
 
-    res1 = 0;
-    res2 = 0;
+    putEcho( 
+        left / 4 , 
+        right / 4 
+    );
 
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(0,0)
 }
 
 void playEffect ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
-    int frame = state -> frame;
-    float * buffer = state -> buffer;
 
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed ){
 
@@ -1328,63 +1350,59 @@ void playEffect ( struct PlayState * state ){
 
             switch ( filter ){
             case 3 :
-                res1 = effect2 * 1.5;
-                res2 = effect2 * 1.0;
+                left = effect2 * 1.5;
+                right = effect2 * 1.0;
                 break;
             case 2 :
-                res1 = effect2 / 4.0;
-                res2 = effect2 / 3.5;
+                left = effect2 / 4.0;
+                right = effect2 / 3.5;
                 break;
             case 1 :
-                res1 = effect2 / 2.0;
-                res2 = effect2 / 2.5;
+                left = effect2 / 2.0;
+                right = effect2 / 2.5;
                 break;
             default:
-                res2 = res1 = effect2;
+                right = left = effect2;
             }
 
-            res2 /= effect1;
-            res2 = sin(res2);
-            res2 *= effect1;
+            right /= effect1;
+            right = sin(right);
+            right *= effect1;
 
-            res1 /= effect1;
-            res1 = sin(res2);
-            res1 *= effect1;
+            left /= effect1;
+            left = sin(right);
+            left *= effect1;
         }
         
     } else {
-        res1 = 0;
-        res2 = 0;
+        left = 0;
+        right = 0;
     }
 
-    buffer[ ( frame << 1 ) + 1 ] += ( res2 / 9.0F );
-    buffer[ ( frame << 1 ) + 0 ] += ( res1 / 9.0F );
+    addBuffer(
+        left / 9.0F , 
+        right / 9.0F
+    );
 
     if( effect_lowfilter[ channel ] != 4 )
         putEcho(
-            res1 / 5 ,
-            res2 / 5
+            left / 5 ,
+            right / 5
         );
 
-    res1 = 0;
-    res2 = 0;
-
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(0,0)
 }
 
 void playAcidBass ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
-    int frame = state -> frame;
-    float * buffer = state -> buffer;
 
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed ){
         
-        bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
+        bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
         bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
         bass_timer[ channel ] = 0;
         
@@ -1402,37 +1420,34 @@ void playAcidBass ( struct PlayState * state ){
 
         float bass = bass_timer[channel];
         
-        res2 = res1 = 
+        right = left = 
             sin( bass * 4.01 ) * 0.9 +
             sin( bass ) ;
         
-        if( res1 > 0.2 )
-            res1 = 0.1;
+        if( left > 0.2 )
+            left = 0.1;
         
-        if( res1 < -0.2 )
-            res1 = -0.1;
+        if( left < -0.2 )
+            left = -0.1;
         
-        if( res2 > 0.2 )
-            res2 = 0.1;
+        if( right > 0.2 )
+            right = 0.1;
         
-        if( res2 < -0.2 )
-            res2 = -0.1;
+        if( right < -0.2 )
+            right = -0.1;
         
-        res1 *= effect_timer1[ channel ];
-        res2 *= effect_timer1[ channel ];
+        left *= effect_timer1[ channel ];
+        right *= effect_timer1[ channel ];
 
     } else {
-        res1 = 0;
-        res2 = 0;
+        left = 0;
+        right = 0;
     }
 
-    putEcho( res1 , res2 );
-    
-    buffer[ ( frame << 1 ) + 1 ] += res2;
-    buffer[ ( frame << 1 ) + 0 ] += res1;
+    putEcho( left , right );
+    addBuffer( left , right );
 
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(left,right)
 }
 
 
@@ -1440,13 +1455,11 @@ void playBass ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
-    int frame = state -> frame;
-    float * buffer = state -> buffer;
 
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed ){
-        bass_freq[ channel ] = pow( 2, (float)( note + offset ) / 12.0F );
+        bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
         bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
         bass_timer[ channel ] = 0;
         effect_timer1[ channel ] = 1;
@@ -1461,57 +1474,45 @@ void playBass ( struct PlayState * state ){
 
         float bass = bass_timer[channel];
 
-        res1 = 
+        left = 
             sin( bass ) + 
             sin( bass * 2.01 );
         
-        res2 = 
+        right = 
             cos( bass ) + 
             cos( bass * 2.006 );
         
-        if( res1 > + bound )
-            res1 = + 0.05;
-        
-        if( res1 < - bound )
-            res1 = - 0.05;
-        
-        if( res2 > + bound )
-            res2 = + 0.05;
-        
-        if( res2 < - bound )
-            res2 = - 0.05;
+        constrict(left,bound,0.05)
+        constrict(right,bound,0.05)
 
     } else {
-        res1 = 0;
-        res2 = 0;
+        left = 0;
+        right = 0;
     }
 
     if( bound > 0.1 ){
-        res1 *= effect_timer1[ channel ];
-        res2 *= effect_timer1[ channel ];
+        left *= effect_timer1[ channel ];
+        right *= effect_timer1[ channel ];
     }
     
     if( syn[ channel ] == SYNTH_BASS_TINY ){
-        res1 *= 0.9;
-        res2 *= 0.9;
+        left *= 0.9;
+        right *= 0.9;
     } else
     if( !rec_play ){
         
-        putFlanger( res1 , res2 );
+        putFlanger( left , right );
         
-        res1 /= 1.5;
-        res2 /= 1.5;
+        left /= 1.5;
+        right /= 1.5;
         
-        getFlanger( & res1 , & res2 );
+        getFlanger( & left , & right );
     }
 
-    putEcho( res1 , res2 );
-    
-    buffer[ ( frame << 1 ) + 1 ] += res2;
-    buffer[ ( frame << 1 ) + 0 ] += res1;
+    putEcho( left , right );
+    addBuffer( left , right );
 
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(left,right)
 }
 
 
@@ -1519,10 +1520,8 @@ void playHat ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
-    int frame = state -> frame;
-    float * buffer = state -> buffer;
 
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed ){
 
@@ -1560,41 +1559,42 @@ void playHat ( struct PlayState * state ){
         return;
     }
     
-    res2 = res1 = ( (float) note / 10.0F );
+    right = left = ( (float) note / 10.0F );
 
-    res1 *= (((float)( randomize() & 0x7FFF ) / 32000.0F ) - 0.5 );
-    res2 *= (((float)( randomize() & 0x7FFF ) / 32000.0F ) - 0.5 );
+    left *= (((float)( randomize() & 0x7FFF ) / 32000.0F ) - 0.5 );
+    right *= (((float)( randomize() & 0x7FFF ) / 32000.0F ) - 0.5 );
     
-    if( res1 > hat_old1[ channel ] )
+    if( left > hat_old1[ channel ] )
         hat_old1[ channel ] += 0.03;
     
-    if( res1 < hat_old1[ channel ] )
+    if( left < hat_old1[ channel ] )
         hat_old1[ channel ] -= 0.03;
     
-    if( res2 > hat_old2[ channel ] )
+    if( right > hat_old2[ channel ] )
         hat_old2[ channel ] += 0.03;
     
-    if( res2 < hat_old2[ channel ] )
+    if( right < hat_old2[ channel ] )
         hat_old2[ channel ] -= 0.03;
 
-    res1 = hat_old1[ channel ];
-    res2 = hat_old2[ channel ];
+    left = hat_old1[ channel ];
+    right = hat_old2[ channel ];
 
-    hat_old1[ channel ] = res1;
-    hat_old2[ channel ] = res2;
+    hat_old1[ channel ] = left;
+    hat_old2[ channel ] = right;
 
     float hat_factor = 
         hat_timer[ channel ] * 
         ( (float) note / 100.0F );
 
-    res1 *= hat_factor;
-    res2 *= hat_factor;
+    left *= hat_factor;
+    right *= hat_factor;
 
-    buffer[ ( frame << 1 ) + 0 ] += res1 / 1.8;
-    buffer[ ( frame << 1 ) + 1 ] += res2 / 1.8;
+    addBuffer(
+        left / 1.8 , 
+        right / 1.8
+    );
 
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(left,right)
 }
 
 
@@ -1602,10 +1602,8 @@ void playDrum ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
-    int frame = state -> frame;
-    float * buffer = state -> buffer;
 
-    float res1 , res2;
+    float left , right;
 
     if( state -> tick_changed )
         if( note ){
@@ -1626,7 +1624,7 @@ void playDrum ( struct PlayState * state ){
 
     float drum_ratio = drum_timer2[ channel ] / drum_timer3[ channel ];
 
-    res2 = res1 = 
+    right = left = 
         sinf( ( note / 70) * drum_ratio ) *
         drum_timer1[ channel ] * 
         ( note / 20.0F ) ;
@@ -1637,28 +1635,27 @@ void playDrum ( struct PlayState * state ){
         ( note / 120.0F ) ;
 
     if( tick & 1 ){
-        res1 *= 0.3f;
-        res1 += d2;
+        left *= 0.3f;
+        left += d2;
     } else {
-        res2 *= 0.3f;
-        res2 += d2;
+        right *= 0.3f;
+        right += d2;
     }
 
 
     float clip = 0.3;
 
-    res1 = ranged(res1,clip);
-    res2 = ranged(res2,clip);
+    left = ranged(left,clip);
+    right = ranged(right,clip);
 
-    buffer[ ( frame << 1 ) + 1 ] += res2;
-    buffer[ ( frame << 1 ) + 0 ] += res1;
+    addBuffer(left,right);
 
-    res1 = 0;
-    res2 = 0;
-
-    * (state -> left) = res1;
-    * (state -> right) = res2;
+    setFrame(0,0)
 }
+
+#undef addChannel
+#undef addBuffer
+#undef setFrame
 
 
 void ( * Instruments [] )( struct PlayState * ) = {
@@ -1675,8 +1672,7 @@ void ( * Instruments [] )( struct PlayState * ) = {
 
 void play ( float * buffer , int length ){
 
-    float res1, res2;
-    float freq;
+    float left , right;
     
 
     clearBuffer(buffer,length);
@@ -1686,7 +1682,7 @@ void play ( float * buffer , int length ){
     
     int tick_changed = 0;
     
-    for ( int a = 0 ; a < length ; a++ ){
+    for ( int frame = 0 ; frame < length ; frame++ ){
 
         tick_changed = 0;
 
@@ -1733,23 +1729,23 @@ void play ( float * buffer , int length ){
             state.tick_changed = tick_changed;
             state.channel = channel;
             state.buffer = buffer;
-            state.frame = a;
-            state.right = & res2;
-            state.left = & res1;
+            state.frame = frame;
+            state.right = & right;
             state.note = row[ channel ];
+            state.left = & left;
 
             ( * Instruments[channel] )( & state );
         }
 
-        getEcho( & res1 , & res2 );
+        getEcho( & left , & right );
 
-        buffer[ ( a << 1 ) + 1 ] += res2;
-        buffer[ ( a << 1 ) + 0 ] += res1;
+        buffer[ ( frame << 1 ) + 1 ] += right;
+        buffer[ ( frame << 1 ) + 0 ] += left;
 
         if( start_recorder ){
             
-            rec1[ rec_ptr ] = buffer[ ( a << 1 ) + 0 ];
-            rec2[ rec_ptr ] = buffer[ ( a << 1 ) + 1 ];
+            rec1[ rec_ptr ] = buffer[ ( frame << 1 ) + 0 ];
+            rec2[ rec_ptr ] = buffer[ ( frame << 1 ) + 1 ];
 
             rec_ptr++;
 
@@ -1766,13 +1762,13 @@ void play ( float * buffer , int length ){
                 rec2[ rec_ptr ] / 2
             );
             
-            res1 = 0;
-            res2 = 0;
+            left = 0;
+            right = 0;
             
-            getFlanger( & res1 , & res2 );
+            getFlanger( & left , & right );
             
-            buffer[ ( a << 1 ) + 1 ] += res2;
-            buffer[ ( a << 1 ) + 0 ] += res1;
+            buffer[ ( frame << 1 ) + 1 ] += right;
+            buffer[ ( frame << 1 ) + 0 ] += left;
             
             rec_ptr--;
             
@@ -1791,8 +1787,8 @@ void play ( float * buffer , int length ){
                 fadeout_vol = 0;
             }
             
-            buffer[ ( a << 1 ) + 0 ] *= fadeout_vol;
-            buffer[ ( a << 1 ) + 1 ] *= fadeout_vol;
+            buffer[ ( frame << 1 ) + 0 ] *= fadeout_vol;
+            buffer[ ( frame << 1 ) + 1 ] *= fadeout_vol;
         }
     }
 }
@@ -1868,11 +1864,11 @@ void sdl_audio_callback ( void * udata , Uint8 * stream , int len ){
 
 
 
-void newline (){
+inline void newline (){
     printf("\n");
 }
 
-void printed ( char * string ){
+inline void printed ( char * string ){
     printf( "    %s\n" , string );
 }
 
@@ -1882,10 +1878,12 @@ typedef FILE * File;
 #define section( name ) \
     fwrite( (void *)(name) , 1 , 4 , file )
 
-#define bytes( literal , size ){                \
-        int value = (literal);                  \
-        fwrite( & value , (size) , 1 , file );  \
-    }
+#define bytes( literal , size ){            \
+                                            \
+    int value = (literal);                  \
+                                            \
+    fwrite( & value , (size) , 1 , file );  \
+}
 
 #define quad( value ) \
     bytes(value,4)
@@ -2066,8 +2064,8 @@ void printInstructions (){
 
     newline();
 
-    printed("NighRadio - P.S.");
-    printed("================");
+    printed("NightRadio - P.S.");
+    printed("=================");
 
     newline();
 
