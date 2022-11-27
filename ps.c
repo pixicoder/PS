@@ -988,100 +988,131 @@ float
     rec2[ rec_size ] ;
 
 
-static inline void flanger_put ( float v1, float v2 ){
+static inline void flanger_put ( float v1 , float v2 ){
+
     float ptr2 = flanger_ptr - flanger_size;
-    if( ptr2 < 0 ) ptr2 += ( flanger_size * 2 );
-    flanger_buf1[ (int)ptr2 ] += v1 / 2;
-    flanger_buf2[ (int)ptr2 ] += v2 / 2;
+
+    if(ptr2 < 0)
+        ptr2 += ( flanger_size * 2 );
+
+    flanger_buf1[ (int) ptr2 ] += v1 / 2;
+    flanger_buf2[ (int) ptr2 ] += v2 / 2;
 }
 
-static inline void flanger_get( float* v1, float* v2 )
-{
-    int ptr2;
-    flanger_buf1[ (int)flanger_ptr ] /= 1.1;
-    flanger_buf2[ (int)flanger_ptr ] /= 1.1;
-    *v1 += flanger_buf1[ (int)flanger_ptr ] / 1.5;
-    *v2 += flanger_buf2[ (int)flanger_ptr ] / 1.5;
+
+static inline void flanger_get ( float * v1 , float * v2 ){
+
+    int index = (int) flanger_ptr;
+
+    flanger_buf1[index] /= 1.1;
+    flanger_buf2[index] /= 1.1;
+    
+    * v1 += flanger_buf1[index] / 1.5;
+    * v2 += flanger_buf2[index] / 1.5;
+    
     flanger_ptr++;
-    if( flanger_ptr >= flanger_size * 2 ) 
-    {
-	flanger_ptr -= flanger_size * 2;
-    }
+    
+    if( flanger_ptr >= flanger_size * 2 )
+	    flanger_ptr -= flanger_size * 2;
+
     flanger_timer += 0.0001;
-    if( rec_play ) 
-	flanger_size = 580;
-    else
-	flanger_size = ( ( sin( flanger_timer / 10 ) + 1 ) / 2 ) * ( max_flanger_size - 30 ) + 30;
+
+    flanger_size = (rec_play)
+        ? 580
+        : ( ( sin( flanger_timer / 10 ) + 1 ) / 2 ) * ( max_flanger_size - 30 ) + 30;
 }
 
-static inline void echo_put( float v1, float v2 )
-{
+
+static inline void echo_put ( float v1 , float v2 ){
+    
     int ptr2 = echo_ptr - echo_size;
-    if( ptr2 < 0 ) ptr2 += ( echo_size * 2 );
+    
+    if( ptr2 < 0 )
+        ptr2 += ( echo_size * 2 );
+    
     if( ptr2 < echo_size )
-	echo_buf1[ ptr2 ] += v1 / 2;
+        echo_buf1[ ptr2 ] += v1 / 2;
     else
-	echo_buf2[ ptr2 ] += v2 / 2;
-    //Slow reverb:
-    int a;
-    for( a = 0; a < reverb; a ++ )
-    {
-	ptr2 = echo_ptr + slow_reverb[ a ];
-	if( ptr2 < 0 ) ptr2 += ( echo_size * 2 ) * ( 1 - ( ptr2 / (echo_size*2) ) );
-	if( ptr2 >= ( echo_size * 2 ) ) ptr2 -= ( echo_size * 2 ) * ( ptr2 / (echo_size*2) );
-	if( a & 1 )
-	    echo_buf1[ ptr2 ] += v1 / 6;
-	else
-	    echo_buf2[ ptr2 ] += v2 / 6;
+        echo_buf2[ ptr2 ] += v2 / 2;
+    
+    //  Slow Reverb
+    
+    for ( int a = 0 ; a < reverb ; a++ ){
+	   
+        ptr2 = echo_ptr + slow_reverb[ a ];
+       
+        if( ptr2 < 0 )
+            ptr2 += ( echo_size * 2 ) * ( 1 - ( ptr2 / ( echo_size * 2 ) ) );
+        
+        if( ptr2 >= ( echo_size * 2 ) )
+            ptr2 -= ( echo_size * 2 ) * ( ptr2 / ( echo_size * 2 ) );
+        
+        if( a & 1 )
+            echo_buf1[ ptr2 ] += v1 / 6;
+        else
+            echo_buf2[ ptr2 ] += v2 / 6;
     }
 }
 
-static inline void reverb_put( float v1, float v2 )
-{
+
+static inline void reverb_put ( float v1 , float v2 ){
+    
     int ptr2;
-    //Slow reverb:
-    int a;
-    for( a = 0; a < reverb; a ++ )
-    {
-	ptr2 = echo_ptr + slow_reverb[ a ];
-	if( ptr2 < 0 ) ptr2 += ( echo_size * 2 ) * ( 1 - ( ptr2 / (echo_size*2) ) );
-	if( ptr2 >= ( echo_size * 2 ) ) ptr2 -= ( echo_size * 2 ) * ( ptr2 / (echo_size*2) );
-	if( a & 1 )
-	    echo_buf1[ ptr2 ] += v1 / 6;
-	else
-	    echo_buf2[ ptr2 ] += v2 / 6;
+    
+    //  Slow Reverb
+
+    for( int a = 0 ; a < reverb ; a++ ){
+	    
+        ptr2 = echo_ptr + slow_reverb[ a ];
+	
+        if( ptr2 < 0 )
+            ptr2 += ( echo_size * 2 ) * ( 1 - ( ptr2 / (echo_size * 2) ) );
+	
+        if( ptr2 >= ( echo_size * 2 ) )
+            ptr2 -= ( echo_size * 2 ) * ( ptr2 / (echo_size * 2) );
+	
+        if( a & 1 )
+            echo_buf1[ ptr2 ] += v1 / 6;
+        else
+            echo_buf2[ ptr2 ] += v2 / 6;
     }
 }
 
-static inline void echo_get( float* v1, float* v2 )
-{
-    int ptr2;
-    //echo_buf1[ echo_ptr ] /= 2;
-    //echo_buf2[ echo_ptr ] /= 2;
-    *v1 += echo_buf1[ echo_ptr ];
-    *v2 += echo_buf2[ echo_ptr ];
+
+static inline void echo_get ( float * v1 , float * v2 ){
+
+    * v1 += echo_buf1[ echo_ptr ];
+    * v2 += echo_buf2[ echo_ptr ];
+    
     echo_ptr++;
-    if( echo_ptr >= echo_size * 2 ) 
-    {
-	echo_ptr = 0;
-	int a;
-	int r = ( ( rand() & 255 ) * (echo_size/2) ) >> 8;
-	r += echo_size;
-	for( a = 0; a < ( echo_size * 2 ); a++ )
-	{
-	    ptr2 = a - r;
-	    if( ptr2 < 0 ) ptr2 += ( echo_size * 2 );
-	    echo_buf1[ a ] = ( echo_buf1[ a ] + echo_buf1[ ptr2 ] ) / 2;
-	    echo_buf2[ a ] = ( echo_buf2[ a ] + echo_buf2[ ptr2 ] ) / 2;
-	}
+    
+    if( echo_ptr < echo_size * 2 )
+        return;
+
+    echo_ptr = 0;
+    
+    int r = ( ( rand() & 255 ) * (echo_size/2) ) >> 8;
+    
+    r += echo_size;
+
+    for ( int a = 0 ; a < ( echo_size * 2 ) ; a++ ){
+
+        int ptr2 = a - r;
+        
+        if( ptr2 < 0 )
+            ptr2 += ( echo_size * 2 );
+        
+        echo_buf1[ a ] = ( echo_buf1[ a ] + echo_buf1[ ptr2 ] ) / 2;
+        echo_buf2[ a ] = ( echo_buf2[ a ] + echo_buf2[ ptr2 ] ) / 2;
     }
 }
 
-int offset = 0;
-float bound = 0.05;
 
-void main_callback( float* buf, int len )
-{
+float bound = 0.05;
+int offset = 0;
+
+
+void main_callback ( float * buf , int len ){
     int a;
     int s;
     int c;
@@ -1321,137 +1352,193 @@ void main_callback( float* buf, int len )
 		    break;
 
 		case SYNTH_HAT:
-		    if( tick_changed ) 
-		    {
-			if( cur_line[ s ] )
-			    hat_timer[ s ] = 2;
-			if( cur_line[ s ] == 254 )
-			{
-			    offset ++;
-			    fadeout = 1;
-			    break;
-			}
-			if( cur_line[ s ] == 253 )
-			{
-			    syn[ 3 ] = SYNTH_ACID_BASS;
-			    start_recorder = 1;
-			}
-			if( cur_line[ s ] == 252 )
-			    offset --;
+
+		    if( tick_changed ){
+
+                if( cur_line[ s ] )
+                    hat_timer[ s ] = 2;
+                
+                if( cur_line[ s ] == 254 ){
+                    offset++;
+                    fadeout = 1;
+                    break;
+                }
+
+                if( cur_line[ s ] == 253 ){
+                    syn[ 3 ] = SYNTH_ACID_BASS;
+                    start_recorder = 1;
+                }
+
+                if( cur_line[ s ] == 252 )
+                    offset --;
 		    }
-		    if( cur_line[ s ] == 254 ) break;
-		    if( cur_line[ s ] == 253 ) break;
-		    if( cur_line[ s ] == 252 ) break;
-		    hat_timer[ s ] -= 0.0004;
-		    if( hat_timer[ s ] < 0 ) { hat_timer[ s ] = 0; break; }
-		    res1 = ( ( (float)(randomize()&0x7FFF) / 32000.0F ) - 0.5 ) * ( (float)cur_line[ s ] / 10.0F );
+
+		    if( cur_line[ s ] == 254 )
+                break;
+		    
+            if( cur_line[ s ] == 253 )
+                break;
+		    
+            if( cur_line[ s ] == 252 )
+                break;
+		    
+            hat_timer[ s ] -= 0.0004;
+		    
+            if( hat_timer[ s ] < 0 ){
+                hat_timer[ s ] = 0;
+                break;
+            }
+		    
+            res1 = ( ( (float)(randomize()&0x7FFF) / 32000.0F ) - 0.5 ) * ( (float)cur_line[ s ] / 10.0F );
 		    res2 = ( ( (float)(randomize()&0x7FFF) / 32000.0F ) - 0.5 ) * ( (float)cur_line[ s ] / 10.0F );
-		    if( res1 > hat_old1[ s ] ) hat_old1[ s ] += 0.03;
-		    if( res1 < hat_old1[ s ] ) hat_old1[ s ] -= 0.03;
-		    if( res2 > hat_old2[ s ] ) hat_old2[ s ] += 0.03;
-		    if( res2 < hat_old2[ s ] ) hat_old2[ s ] -= 0.03;
+		    
+            if( res1 > hat_old1[ s ] )
+                hat_old1[ s ] += 0.03;
+		    
+            if( res1 < hat_old1[ s ] )
+                hat_old1[ s ] -= 0.03;
+		    
+            if( res2 > hat_old2[ s ] )
+                hat_old2[ s ] += 0.03;
+		    
+            if( res2 < hat_old2[ s ] )
+                hat_old2[ s ] -= 0.03;
+
 		    res1 = hat_old1[ s ];
 		    res2 = hat_old2[ s ];
+
 		    hat_old1[ s ] = res1;
 		    hat_old2[ s ] = res2;
+
 		    res1 *= hat_timer[ s ] * ( (float)cur_line[ s ] / 100.0F );
 		    res2 *= hat_timer[ s ] * ( (float)cur_line[ s ] / 100.0F );
-		    //reverb_put( res1 / 5, res2 / 5 );
+
 		    buf[ ( a << 1 ) ] += res1 / 1.8;
 		    buf[ ( a << 1 ) + 1 ] += res2 / 1.8;
-		    break;
 
-		case SYNTH_DRUM: 
-		    if( tick_changed ) 
-		    {
-			if( cur_line[ s ] )
-			{
-			    drum_timer1[ s ] = 1;
-			    drum_timer2[ s ] = 0;
-			    drum_timer3[ s ] = 1;
-			}
+		    break;
+		case SYNTH_DRUM :
+
+		    if( tick_changed ){
+                if( cur_line[ s ] ){
+                    drum_timer1[ s ] = 1;
+                    drum_timer2[ s ] = 0;
+                    drum_timer3[ s ] = 1;
+                }
 		    }
+
 		    drum_timer1[ s ] -= 0.001;
 		    drum_timer2[ s ] += 0.03;
 		    drum_timer3[ s ] += 0.003;
-		    if( drum_timer1[ s ] < 0 ) { drum_timer1[ s ] = 0; break; }
-		    if( 0 )
-		    {
-			res1 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 12.0F ) * sinf( ((float)cur_line[ s ] / 70) * drum_timer2[ s ] / drum_timer3[ s ] );
-			res2 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 12.0F ) * sinf( drum_timer2[ s ] / drum_timer3[ s ] + 2 );
+		    
+            if( drum_timer1[ s ] < 0 ){
+                drum_timer1[ s ] = 0;
+                break;
+            }
+		    
+            if( 0 ){
+                res1 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 12.0F ) * sinf( ((float)cur_line[ s ] / 70) * drum_timer2[ s ] / drum_timer3[ s ] );
+                res2 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 12.0F ) * sinf( drum_timer2[ s ] / drum_timer3[ s ] + 2 );
+		    } else {
+                
+                res1 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 20.0F ) * sinf( ((float)cur_line[ s ] / 70) * drum_timer2[ s ] / drum_timer3[ s ] );
+                res2 = res1;
+			
+                float d2 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 120.0F ) * sinf( drum_timer2[ s ] / drum_timer3[ s ] + 2 );
+                
+                if( tick & 1 ){
+                    res1 *= 0.3f;
+                    res1 += d2;
+                } else {
+                    res2 *= 0.3f;
+                    res2 += d2;
+                }
 		    }
-		    else
-		    {
-			res1 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 20.0F ) * sinf( ((float)cur_line[ s ] / 70) * drum_timer2[ s ] / drum_timer3[ s ] );
-			res2 = res1;
-			float d2 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 120.0F ) * sinf( drum_timer2[ s ] / drum_timer3[ s ] + 2 );
-			if( tick & 1 )
-			{
-			    res1 *= 0.3f;
-			    res1 += d2;
-			}
-			else
-			{
-			    res2 *= 0.3f;
-			    res2 += d2;
-			}
-		    }
+
 		    float clip = 0.3;
-		    if( res1 > clip ) res1 = clip;
-		    if( res1 < -clip ) res1 = -clip;
-		    if( res2 > clip ) res2 = clip;
-		    if( res2 < -clip ) res2 = -clip;
-		    buf[ ( a << 1 ) ] += res1;
+		    
+            if( res1 > clip )
+                res1 = clip;
+		    
+            if( res1 < -clip )
+                res1 = -clip;
+		    
+            if( res2 > clip )
+                res2 = clip;
+		    
+            if( res2 < -clip )
+                res2 = -clip;
+		    
+            buf[ ( a << 1 ) ] += res1;
 		    buf[ ( a << 1 ) + 1 ] += res2;
-		    res1 = 0;
+		    
+            res1 = 0;
 		    res2 = 0;
-		    break;
+		    
+            break;
 	    }
 	}
-	//buf[ ( a << 1 ) ] = 0;
-	//buf[ ( a << 1 ) + 1 ] = 0;
-	echo_get( &res1, &res2 );
+
+	echo_get( & res1 , & res2 );
+
 	buf[ ( a << 1 ) ] += res1;
 	buf[ ( a << 1 ) + 1 ] += res2;
-	if( start_recorder )
-	{
-	    rec1[ rec_ptr ] = buf[ ( a << 1 ) ];
+
+	if( start_recorder ){
+	    
+        rec1[ rec_ptr ] = buf[ ( a << 1 ) ];
 	    rec2[ rec_ptr ] = buf[ ( a << 1 ) + 1 ];
-	    //if( randomize() & 15 ) rec1[ rec_ptr ] += 0.2 * ( (float)( randomize() & 255 ) / 255 );
-	    //if( randomize() & 15 ) rec2[ rec_ptr ] += 0.2 * ( (float)( randomize() & 255 ) / 255 );
+
 	    rec_ptr++;
-	    if( rec_ptr >= rec_size )
-	    {
-		start_recorder = 0;
-		rec_ptr --;
+
+	    if( rec_ptr >= rec_size ){
+            start_recorder = 0;
+            rec_ptr --;
 	    }
 	}
-	if( rec_play )
-	{
-	    flanger_put( rec1[ rec_ptr ] / 2, rec2[ rec_ptr ] / 2 );
-	    res1 = 0; res2 = 0;
-	    flanger_get( &res1, &res2 );
-	    buf[ ( a << 1 ) ] += res1;
-    	    buf[ ( a << 1 ) + 1 ] += res2;
-	    rec_ptr--;
-	    if( rec_ptr < 0 ) rec_ptr = rec_size - 1;
+
+	if( rec_play ){
+
+	    flanger_put( 
+            rec1[ rec_ptr ] / 2 ,
+            rec2[ rec_ptr ] / 2
+        );
+	    
+        res1 = 0; res2 = 0;
+	    
+        flanger_get( & res1 , & res2 );
+	    
+        buf[ ( a << 1 ) ] += res1;
+    	buf[ ( a << 1 ) + 1 ] += res2;
+	    
+        rec_ptr--;
+	    
+        if( rec_ptr < 0 )
+            rec_ptr = rec_size - 1;
 	}
+
 	timer++;
-	if( fadeout )
-	{
+	
+    if( fadeout ){
+
 	    fadeout_vol -= 0.000001;
-	    if( fadeout_vol <= 0 ) { fadeout_vol = 0; exit_request = 1; }
-	    buf[ ( a << 1 ) ] *= fadeout_vol;
+	    
+        if( fadeout_vol <= 0 ){
+            exit_request = 1;
+            fadeout_vol = 0;
+        }
+	    
+        buf[ ( a << 1 ) ] *= fadeout_vol;
 	    buf[ ( a << 1 ) + 1 ] *= fadeout_vol;
 	}
     }
 }
 
-//Utrom ekzamen... Ja ne gotov :) ... na na na
-//11 june 2005
 
-void render_buf( float* buf, int len ) //buf: LRLRLR..; len - number of frames (one frame = LR (Left+Right channel));
-{
+//buf: LRLRLR..; len - number of frames (one frame = LR (Left+Right channel));
+
+void render_buf( float* buf, int len ){
+    
     main_callback( buf, len );
     //Simple DC blocker:
     if( volume != 1 ) for( int a = 0; a < len * 2; a++ ) buf[ a ] *= volume;
