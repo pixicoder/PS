@@ -1740,19 +1740,54 @@ void int_handler ( int param ){
 }
 
 
-int main( int argc , char * argv [] ){
+void newline (){
+    printf("\n");
+}
+
+void printed ( char * string ){
+    printf( "    %s\n" , string );
+}
+
+void printInstructions (){
+
+    newline();
+
+    printed("NighRadio - P.S.");
+    printed("================");
+
+    newline();
+
+    printed("Website : https://WarmPlace.ru");
+    printed("GitHub : https://github.com/pixicoder/PS");
+    printed("Email : nightradio@gmail.com");
+
+    newline();
+    newline();
+
+    printed("Usage");
+    printed("=====");
+
+    newline();
+
+    printed("Export : Pass the filename with '-o \"Music.wav\"'");
+    printed("Play   : Don't pass any arguments.");
+    printed("Quit   : Press Ctrl+C");
+
+    newline();
+}
+
+
+int main( int argumentCount , char * arguments [] ){
 
     signal( SIGINT , int_handler );
     
-    if( argc == 3 )
-        if( strcmp( argv[ 1 ] , "-o" ) == 0 ){
-            export_file_name = argv[ 2 ];
+    if( argumentCount == 3 )
+        if( strcmp( arguments[ 1 ] , "-o" ) == 0 ){
+            export_file_name = arguments[ 2 ];
             out_mode = 1;
         }
 
-    printf( "\nNightRadio - P.S.\nnightradio@gmail.com\nWarmPlace.ru\n\n" );
-    printf( "Usage:\n  just play: ./ps\n  export to WAV: ./ps -o filename.wav\n" );
-    printf( "Press CTRL+C to exit\n\n" );
+    printInstructions();
     
     if(sound_init())
         return 1;
