@@ -1537,140 +1537,230 @@ void main_callback ( float * buf , int len ){
 
 //buf: LRLRLR..; len - number of frames (one frame = LR (Left+Right channel));
 
-void render_buf( float* buf, int len ){
-    
+void render_buf( float * buf , int len ){
+
     main_callback( buf, len );
-    //Simple DC blocker:
-    if( volume != 1 ) for( int a = 0; a < len * 2; a++ ) buf[ a ] *= volume;
-    for( int a = 0; a < len; a++ )
-    {
+
+    //  Simple DC Blocker
+    
+    if( volume != 1 )
+        for ( int a = 0 ; a < len * 2 ; a++ )
+            buf[ a ] *= volume;
+    
+    for ( int a = 0 ; a < len ; a++ ){
         dc_sl += buf[ a * 2 ]; dc_sl /= 2;
         dc_sr += buf[ a * 2 + 1 ]; dc_sr /= 2;
     }
-    for( int a = 0; a < len; a++ )
-    {
-        //Simple DC blocker:
+
+    for( int a = 0 ; a < len ; a++ ){
+
+        //  Simple DC Bocker
+        
         float a2 = (float)(len-a) / len;
         float a3 = (float)a / len;
+
         buf[ a * 2 ] -= ( dc_psl * a2 ) + ( dc_sl * a3 );
         buf[ a * 2 + 1 ] -= ( dc_psr * a2 ) + ( dc_sr * a3 );
-    	//Simple volume compression:
+    	
+        //  Simple Volume Compression
+        
         buf[ a * 2 ] /= max_vol;
         buf[ a * 2 + 1 ] /= max_vol;
+
         max_vol -= 0.0005;
-        if( max_vol < 1 ) max_vol = 1;
-        float t1 = buf[ a * 2 ]; if( t1 < 0 ) t1 = -t1;
-        float t2 = buf[ a * 2 + 1 ]; if( t2 < 0 ) t2 = -t2;
-        if( t1 > max_vol ) max_vol = t1;
-        if( t2 > max_vol ) max_vol = t2;
+        
+        if( max_vol < 1 )
+            max_vol = 1;
+        
+        float t1 = buf[ a * 2 ];
+        
+        if( t1 < 0 )
+            t1 = -t1;
+        
+        float t2 = buf[ a * 2 + 1 ];
+        
+        if( t2 < 0 )
+            t2 = -t2;
+        
+        if( t1 > max_vol )
+            max_vol = t1;
+        
+        if( t2 > max_vol )
+            max_vol = t2;
     }
-    dc_psl = dc_sl; dc_psr = dc_sr;
+
+    dc_psl = dc_sl;
+    dc_psr = dc_sr;
 }
 
-void sdl_audio_callback( void* udata, Uint8* stream, int len )
-{
-    render_buf( (float*)stream, len / 8 );
+
+void sdl_audio_callback ( void * udata , Uint8 * stream , int len ){
+    render_buf( (float *) stream , len / 8 );
 }
 
-int sound_init()
-{
-    for( int a = 0; a < reverb; a++ ) slow_reverb[ a ] = ( ( rand() & 2047 ) - 1024 ) << 6;
-    if( out_mode == 0 )
-    {
-	SDL_Init( 0 );
-	SDL_AudioSpec a;
-	a.freq = srate;
-	a.format = AUDIO_F32;
-	a.channels = 2;
-	a.samples = bufsize;
-	a.callback = sdl_audio_callback;
-	a.userdata = NULL;
-	if( SDL_OpenAudio( &a, NULL ) < 0 )
-	{
-    	    printf( "Couldn't open audio: %s\n", SDL_GetError() );
-    	    return -1;
-	}
-	SDL_PauseAudio( 0 );
-	return 0;
+
+int sound_init (){
+
+    for ( int a = 0 ; a < reverb ; a++ )
+        slow_reverb[ a ] = ( ( rand() & 2047 ) - 1024 ) << 6;
+    
+    if( out_mode == 0 ){
+        
+        SDL_Init( 0 );
+        
+        SDL_AudioSpec a;
+        a.freq = srate;
+        a.format = AUDIO_F32;
+        a.channels = 2;
+        a.samples = bufsize;
+        a.callback = sdl_audio_callback;
+        a.userdata = NULL;
+
+        if( SDL_OpenAudio( &a, NULL ) < 0 ){
+            printf( "Couldn't open audio: %s\n", SDL_GetError() );
+            return -1;
+        }
+        
+        SDL_PauseAudio( 0 );
+        
+        return 0;
     }
-    if( out_mode == 1 )
-    {
-	FILE* f = fopen( export_file_name, "wb" );
-        if( f )
-        {
+
+    if( out_mode == 1 ){
+        
+	    FILE * f = fopen( export_file_name , "wb" );
+        
+        if( f ){
+
     	    printf( "Exporting to WAV...\n" );
-    	    int fixup1 = 0, fixup2 = 0;
-    	    int out_bytes = 0;
-    	    int val;
-    	    //WAV header:
-            fwrite( (void*)"RIFF", 1, 4, f );
+
+    	    int out_bytes = 0 ,
+                fixup1 = 0 ,
+                fixup2 = 0 ;
+    	    
+            int val;
+    	    
+            //  WAV Header
+            
+            fwrite( (void *) "RIFF" , 1 , 4 , f );
+            
             val = 4 + 24 + 8 + out_bytes;
             fixup1 = ftell( f );
-            fwrite( &val, 4, 1, f );
-            fwrite( (void*)"WAVE", 1, 4, f );
-            //WAV FORMAT:
-            fwrite( (void*)"fmt ", 1, 4, f );
-            val = 16; fwrite( &val, 4, 1, f );
-            val = 3; fwrite( &val, 2, 1, f ); //format
-            val = 2; fwrite( &val, 2, 1, f ); //channels
-            val = srate; fwrite( &val, 4, 1, f ); //frames per second
-            val = srate * 2 * 4; fwrite( &val, 4, 1, f ); //bytes per second
-            val = 2 * 4; fwrite( &val, 2, 1, f ); //block align
-            val = 4 * 8; fwrite( &val, 2, 1, f ); //bits per sample
-            //WAV DATA:
-            fwrite( (void*)"data", 1, 4, f );
+            
+            fwrite( & val, 4, 1, f );
+            fwrite( (void *) "WAVE" , 1 , 4 , f );
+            
+            //  WAV Format
+            
+            fwrite( (void *) "fmt " , 1 , 4 , f );
+            
+            val = 16; 
+            fwrite( & val , 4 , 1 , f );
+
+            //  Format
+
+            val = 3;
+            fwrite( & val , 2 , 1 , f );
+            
+            //  Channels
+
+            val = 2;
+            fwrite( & val , 2 , 1 , f );
+
+            // Frames Per second
+
+            val = srate;
+            fwrite( & val , 4 , 1 , f );
+            
+            //bytes per second
+
+            val = srate * 2 * 4;
+            fwrite( & val , 4 , 1 , f );
+
+            //  Block Alignment
+
+            val = 2 * 4;
+            fwrite( & val , 2 , 1 , f );
+
+
+            //  Bits Per Sample
+
+            val = 4 * 8;
+            fwrite( & val , 2 , 1 , f );
+            
+            //  WAV Data
+            
+            fwrite( (void *) "data" , 1 , 4 , f );
+            
             fixup2 = ftell( f );
-            fwrite( &out_bytes, 4, 1, f );
-            while( !exit_request )
-            {
-        	float buf[ bufsize * 2 ];
-		render_buf( buf, bufsize );
-        	out_bytes += fwrite( buf, 1, bufsize * 2 * 4, f );
+            
+            fwrite( & out_bytes , 4 , 1 , f );
+            
+            while( !exit_request ){
+
+                float buf[ bufsize * 2 ];
+                render_buf( buf, bufsize );
+                
+                out_bytes += fwrite( buf, 1, bufsize * 2 * 4, f );
             }
-            fseek( f, fixup1, SEEK_SET ); val = 4 + 24 + 8 + out_bytes; fwrite( &val, 4, 1, f );
-            fseek( f, fixup2, SEEK_SET ); val = out_bytes; fwrite( &val, 4, 1, f );
+
+            fseek( f, fixup1, SEEK_SET );
+            val = 4 + 24 + 8 + out_bytes;
+            fwrite( &val, 4, 1, f );
+            
+            fseek( f, fixup2, SEEK_SET );
+            val = out_bytes;
+            fwrite( &val, 4, 1, f );
+            
             int frames = out_bytes / ( 4 * 2 );
+            
             printf( "%d bytes; %d frames; %d seconds\n", out_bytes, frames, frames / srate );
     	    fclose( f );
         }
-	return 0;
+
+	    return 0;
     }
+
     return -1;
 }
 
-void sound_close()
-{
-    if( out_mode == 0 )
-    {
+
+void sound_close (){
+
+    if( out_mode != 0 )
+        return;
+
 	SDL_CloseAudio();
 	SDL_Quit();
-    }
 }
 
-void int_handler( int param )
-{
+
+void int_handler ( int param ){
     exit_request = 1;
 }
 
-int main( int argc, char* argv[] )
-{
-    signal( SIGINT, int_handler );
+
+int main( int argc , char * argv [] ){
+
+    signal( SIGINT , int_handler );
+    
     if( argc == 3 )
-    {
-	if( strcmp( argv[ 1 ], "-o" ) == 0 )
-	{
-	    export_file_name = argv[ 2 ];
-	    out_mode = 1;
-	}
-    }
+        if( strcmp( argv[ 1 ] , "-o" ) == 0 ){
+            export_file_name = argv[ 2 ];
+            out_mode = 1;
+        }
+
     printf( "\nNightRadio - P.S.\nnightradio@gmail.com\nWarmPlace.ru\n\n" );
     printf( "Usage:\n  just play: ./ps\n  export to WAV: ./ps -o filename.wav\n" );
     printf( "Press CTRL+C to exit\n\n" );
-    if( sound_init() ) return 1;
-    while( !exit_request )
-    {
-	sleep( 1 );
-    }
+    
+    if(sound_init())
+        return 1;
+    
+    while(!exit_request)
+	    sleep( 1 );
+
     sound_close();
+    
     return 0;
 }
