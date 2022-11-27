@@ -1177,7 +1177,7 @@ struct PlayState {
     uint8_t note;
     
     int channel;
-    int frame;
+    int offset;
     
     float * buffer;
     float * right;
@@ -1191,9 +1191,9 @@ struct PlayState {
     * (state -> left) = (Left);     \
 }
 
-#define addChannel( offset , value ){                   \
+#define addChannel( Offset , value ){                   \
                                                         \
-    int index = ( (state -> frame) << 1 ) + (offset);   \
+    int index = state -> offset + (Offset);             \
                                                         \
     (state -> buffer)[ index ] += (value);              \
 }
@@ -1205,7 +1205,7 @@ struct PlayState {
 }
 
 
-void playPad ( struct PlayState * state ){
+void Pad ( struct PlayState * state ){
 
     int channel = state -> channel;
     uint8_t note = state -> note;
@@ -1264,7 +1264,7 @@ void playPad ( struct PlayState * state ){
 }
 
 
-void playPoly ( struct PlayState * state ){
+void Poly ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
@@ -1296,40 +1296,33 @@ void playPoly ( struct PlayState * state ){
         right = 0;
     }
 
-    addBuffer(
-        left / 8 , 
-        right / 8
-    );
-
-    putEcho( 
-        left / 4 , 
-        right / 4 
-    );
+    addBuffer( left / 8 , right / 8 );
+    putEcho( left / 4 , right / 4 );
 
     setFrame(0,0)
 }
 
-void playEffect ( struct PlayState * state ){
+void Effect ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
 
-    float left , right;
+    float 
+        right = 0 ,
+        left = 0 ;
 
     if( state -> tick_changed ){
 
-        uint8_t l = note;
-
-        if( l ){
+        if( note ){
             effect_timer1[ channel ] = 1;
             effect_timer2[ channel ] = 0;
         }
 
-        if( l == 5 )
+        if( note == 5 )
             rec_play = 1;
 
         
-        effect_lowfilter[ channel ] = l - 1;
+        effect_lowfilter[ channel ] = note - 1;
     }
 
     if( effect_timer1[ channel ] ){
@@ -1374,31 +1367,24 @@ void playEffect ( struct PlayState * state ){
             left *= effect1;
         }
         
-    } else {
-        left = 0;
-        right = 0;
     }
 
-    addBuffer(
-        left / 9.0F , 
-        right / 9.0F
-    );
+    addBuffer( left / 9.0F , right / 9.0F );
 
     if( effect_lowfilter[ channel ] != 4 )
-        putEcho(
-            left / 5 ,
-            right / 5
-        );
+        putEcho( left / 5 , right / 5 );
 
     setFrame(0,0)
 }
 
-void playAcidBass ( struct PlayState * state ){
+void AcidBass ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
 
-    float left , right;
+    float 
+        right = 0 ,
+        left = 0 ;
 
     if( state -> tick_changed ){
         
@@ -1439,9 +1425,6 @@ void playAcidBass ( struct PlayState * state ){
         left *= effect_timer1[ channel ];
         right *= effect_timer1[ channel ];
 
-    } else {
-        left = 0;
-        right = 0;
     }
 
     putEcho( left , right );
@@ -1451,12 +1434,14 @@ void playAcidBass ( struct PlayState * state ){
 }
 
 
-void playBass ( struct PlayState * state ){
+void Bass ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
 
-    float left , right;
+    float 
+        right = 0 ,
+        left = 0 ;
 
     if( state -> tick_changed ){
         bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
@@ -1485,26 +1470,23 @@ void playBass ( struct PlayState * state ){
         constrict(left,bound,0.05)
         constrict(right,bound,0.05)
 
-    } else {
-        left = 0;
-        right = 0;
     }
 
     if( bound > 0.1 ){
-        left *= effect_timer1[ channel ];
         right *= effect_timer1[ channel ];
+        left *= effect_timer1[ channel ];
     }
     
     if( syn[ channel ] == SYNTH_BASS_TINY ){
-        left *= 0.9;
         right *= 0.9;
+        left *= 0.9;
     } else
     if( !rec_play ){
         
         putFlanger( left , right );
         
-        left /= 1.5;
         right /= 1.5;
+        left /= 1.5;
         
         getFlanger( & left , & right );
     }
@@ -1516,7 +1498,7 @@ void playBass ( struct PlayState * state ){
 }
 
 
-void playHat ( struct PlayState * state ){
+void Hat ( struct PlayState * state ){
 
     uint8_t note = state -> note;
     int channel = state -> channel;
@@ -1598,7 +1580,7 @@ void playHat ( struct PlayState * state ){
 }
 
 
-void playDrum ( struct PlayState * state ){ 
+void Drum ( struct PlayState * state ){ 
 
     uint8_t note = state -> note;
     int channel = state -> channel;
@@ -1645,8 +1627,8 @@ void playDrum ( struct PlayState * state ){
 
     float clip = 0.3;
 
-    left = ranged(left,clip);
     right = ranged(right,clip);
+    left = ranged(left,clip);
 
     addBuffer(left,right);
 
@@ -1658,16 +1640,8 @@ void playDrum ( struct PlayState * state ){
 #undef setFrame
 
 
-void ( * Instruments [] )( struct PlayState * ) = {
-    playDrum ,
-    playHat ,
-    playBass ,
-    playBass ,
-    playAcidBass ,
-    playEffect ,
-    playPoly ,
-    playPad
-};
+void ( * Instruments [] )( struct PlayState * ) = 
+    { Drum , Hat , Bass , Bass , AcidBass , Effect , Poly , Pad };
 
 
 void play ( float * buffer , int length ){
@@ -1680,11 +1654,12 @@ void play ( float * buffer , int length ){
 
     //  Render
     
-    int tick_changed = 0;
-    
     for ( int frame = 0 ; frame < length ; frame++ ){
 
-        tick_changed = 0;
+        int offset = ( frame << 1 );
+
+        bool tick_changed = false;
+
 
         // Increment Tick Number
 
@@ -1694,8 +1669,9 @@ void play ( float * buffer , int length ){
         }
 
         if( timer == 0 )
-            tick_changed = 1;
+            tick_changed = true;
         
+
         //  Synths Channels
         
         for ( int channel = 0 ; channel < Channel_Count ; channel++ ){
@@ -1729,7 +1705,7 @@ void play ( float * buffer , int length ){
             state.tick_changed = tick_changed;
             state.channel = channel;
             state.buffer = buffer;
-            state.frame = frame;
+            state.offset = offset;
             state.right = & right;
             state.note = row[ channel ];
             state.left = & left;
@@ -1739,13 +1715,13 @@ void play ( float * buffer , int length ){
 
         getEcho( & left , & right );
 
-        buffer[ ( frame << 1 ) + 1 ] += right;
-        buffer[ ( frame << 1 ) + 0 ] += left;
+        buffer[ offset + 1 ] += right;
+        buffer[ offset + 0 ] += left;
 
         if( start_recorder ){
             
-            rec1[ rec_ptr ] = buffer[ ( frame << 1 ) + 0 ];
-            rec2[ rec_ptr ] = buffer[ ( frame << 1 ) + 1 ];
+            rec1[ rec_ptr ] = buffer[ offset + 0 ];
+            rec2[ rec_ptr ] = buffer[ offset + 1 ];
 
             rec_ptr++;
 
@@ -1767,8 +1743,8 @@ void play ( float * buffer , int length ){
             
             getFlanger( & left , & right );
             
-            buffer[ ( frame << 1 ) + 1 ] += right;
-            buffer[ ( frame << 1 ) + 0 ] += left;
+            buffer[ offset + 1 ] += right;
+            buffer[ offset + 0 ] += left;
             
             rec_ptr--;
             
@@ -1787,8 +1763,8 @@ void play ( float * buffer , int length ){
                 fadeout_vol = 0;
             }
             
-            buffer[ ( frame << 1 ) + 0 ] *= fadeout_vol;
-            buffer[ ( frame << 1 ) + 1 ] *= fadeout_vol;
+            buffer[ offset + 0 ] *= fadeout_vol;
+            buffer[ offset + 1 ] *= fadeout_vol;
         }
     }
 }
@@ -2012,35 +1988,38 @@ int exportWAV ( const char * path ){
 #undef word
 
 
+int playAudio (){
+
+    SDL_Init( 0 );
+        
+    SDL_AudioSpec a;
+    a.callback = sdl_audio_callback;
+    a.userdata = NULL;
+    a.channels = 2;
+    a.samples = bufsize;
+    a.format = AUDIO_F32;
+    a.freq = srate;
+
+    if( SDL_OpenAudio( & a , NULL ) < 0 ){
+        printf( "Couldn't open audio: %s\n" , SDL_GetError() );
+        return -1;
+    }
+    
+    SDL_PauseAudio( 0 );
+    
+    return 0;
+}
+
+
 int sound_init ( const char * path ){
 
     for ( int a = 0 ; a < Reverb ; a++ )
         slow_reverb[ a ] = ( ( rand() & 2047 ) - 1024 ) << 6;
     
-    if( out_mode == 0 ){
-        
-        SDL_Init( 0 );
-        
-        SDL_AudioSpec a;
-        a.callback = sdl_audio_callback;
-        a.userdata = NULL;
-        a.channels = 2;
-        a.samples = bufsize;
-        a.format = AUDIO_F32;
-        a.freq = srate;
-
-        if( SDL_OpenAudio( & a , NULL ) < 0 ){
-            printf( "Couldn't open audio: %s\n" , SDL_GetError() );
-            return -1;
-        }
-        
-        SDL_PauseAudio( 0 );
-        
-        return 0;
+    switch ( out_mode ){
+    case 0 : return playAudio();
+    case 1 : return exportWAV( path );
     }
-
-    if( out_mode == 1 )
-        return exportWAV(path);
 
     return -1;
 }
@@ -2056,7 +2035,7 @@ void sound_close (){
 }
 
 
-void int_handler ( int param ){
+void onInterrupt (){
     stop_execution = 1;
 }
 
@@ -2091,7 +2070,7 @@ void printInstructions (){
 
 int main( int argumentCount , char * arguments [] ){
 
-    signal( SIGINT , int_handler );
+    signal( SIGINT , onInterrupt );
     
     const char * export_path = NULL;
 
