@@ -7,12 +7,14 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <stdio.h>
+#include <math.h>
+
 #include "SDL2/SDL.h"
+
 
 #if defined(_WIN32) || defined(_WIN64)
     #include <windows.h>
@@ -21,20 +23,33 @@
     #include <unistd.h> //sleep()
 #endif
 
-#define one_tick_size (int)6000
-#define chan_num (int)8 //Number of channels (synth tracks)
 
-int srate = 44100;
+//  Number of Synth Channels
+
+#define Channel_Count 8
+
+#define Tick_Size 6000
+
+#define Echo_Size ( Tick_Size * 3 )
+
+#define Reverb 16
+
+#define Flanger_Max_Size 100
+
+
+
+
 int bufsize = 1024;
-int exit_request = 0;
-int fadeout = 0;
+int srate = 44100;
 
 float fadeout_vol = 1;
+int fadeout = 0;
+
 float volume = 1.2;
 
-int timer = 0; //0...one_tick_size
+int timer = 0; //0...Tick_Size
 int tick = 0; //0...pattern size (number of lines)
-int cur_pattern = 0; //0...number of patterns
+int pattern = 0; //0...number of patterns
 
 float
     dc_sl = 0 ,
@@ -46,6 +61,7 @@ float
 
 float loudest = 1;
 
+int exit_request = 0;
 int out_mode = 0; //0 - SDL; 1 - WAV EXPORT;
 
 
@@ -60,6 +76,12 @@ int randomize (){
     return seed;
 }
 
+
+#define limit( value , min , max ) \
+    fmax(fmin((value),(max)),(min))
+
+#define ranged( value , range ) \
+    limit((value),-(range),(range))
 
 
 /*
@@ -927,28 +949,28 @@ enum {
 };
 
 float 
-    drum_timer1[ chan_num ] ,
-    drum_timer2[ chan_num ] ,
-    drum_timer3[ chan_num ] ;
+    drum_timer1[ Channel_Count ] ,
+    drum_timer2[ Channel_Count ] ,
+    drum_timer3[ Channel_Count ] ;
 
 float 
-    hat_timer[ chan_num ] ,
-    hat_old1[ chan_num ] ,
-    hat_old2[ chan_num ] ;
+    hat_timer[ Channel_Count ] ,
+    hat_old1[ Channel_Count ] ,
+    hat_old2[ Channel_Count ] ;
 
 float 
-    bass_tdelta[ chan_num ] ,
-    bass_delta[ chan_num ] ,
-    bass_timer[ chan_num ] ,
-    bass_freq[ chan_num ] ;
+    bass_tdelta[ Channel_Count ] ,
+    bass_delta[ Channel_Count ] ,
+    bass_timer[ Channel_Count ] ,
+    bass_freq[ Channel_Count ] ;
 
 float 
-    effect_timer1[ chan_num ] ,
-    effect_timer2[ chan_num ] ;
+    effect_timer1[ Channel_Count ] ,
+    effect_timer2[ Channel_Count ] ;
 
-int effect_lowfilter[ chan_num ];
+int effect_lowfilter[ Channel_Count ];
 
-int syn [ chan_num ] = {
+int syn [ Channel_Count ] = {
     SYNTH_DRUM ,
     SYNTH_HAT ,
     SYNTH_BASS ,
@@ -960,23 +982,20 @@ int syn [ chan_num ] = {
 };
 
 
-#define echo_size ( one_tick_size * 3 )
 
 float 
-    echo_buf1[ echo_size * 2 ] ,
-    echo_buf2[ echo_size * 2 ] ;
+    echo_buf1[ Echo_Size * 2 ] ,
+    echo_buf2[ Echo_Size * 2 ] ;
 
 int echo_ptr = 0;
 
-#define reverb 16
 
-int slow_reverb[ reverb ];
+int slow_reverb[ Reverb ];
 
-#define max_flanger_size 100
 
 float 
-    flanger_buf1[ max_flanger_size * 3 * 6 ] ,
-    flanger_buf2[ max_flanger_size * 3 * 6 ] ;
+    flanger_buf1[ Flanger_Max_Size * 3 * 6 ] ,
+    flanger_buf2[ Flanger_Max_Size * 3 * 6 ] ;
 
 float 
     flanger_timer = 0 ,
@@ -991,14 +1010,14 @@ int
     rec_play = 0 ,
     rec_ptr = 0 ;
 
-#define rec_size ( one_tick_size * 16 )
+#define rec_size ( Tick_Size * 16 )
 
 float 
     rec1[ rec_size ] ,
     rec2[ rec_size ] ;
 
 
-static inline void flanger_put ( float v1 , float v2 ){
+static inline void putFlanger ( float v1 , float v2 ){
 
     float ptr2 = flanger_ptr - flanger_size;
 
@@ -1010,7 +1029,7 @@ static inline void flanger_put ( float v1 , float v2 ){
 }
 
 
-static inline void flanger_get ( float * v1 , float * v2 ){
+static inline void getFlanger ( float * v1 , float * v2 ){
 
     int index = (int) flanger_ptr;
 
@@ -1029,33 +1048,34 @@ static inline void flanger_get ( float * v1 , float * v2 ){
 
     flanger_size = (rec_play)
         ? 580
-        : ( ( sin( flanger_timer / 10 ) + 1 ) / 2 ) * ( max_flanger_size - 30 ) + 30;
+        : ( ( sin( flanger_timer / 10 ) + 1 ) / 2 ) * ( Flanger_Max_Size - 30 ) + 30;
 }
 
 
-static inline void echo_put ( float v1 , float v2 ){
+static inline void putEcho ( float v1 , float v2 ){
     
-    int ptr2 = echo_ptr - echo_size;
+    int ptr2 = echo_ptr - Echo_Size;
     
     if( ptr2 < 0 )
-        ptr2 += ( echo_size * 2 );
+        ptr2 += ( Echo_Size * 2 );
     
-    if( ptr2 < echo_size )
+    if( ptr2 < Echo_Size )
         echo_buf1[ ptr2 ] += v1 / 2;
     else
         echo_buf2[ ptr2 ] += v2 / 2;
     
+
     //  Slow Reverb
     
-    for ( int a = 0 ; a < reverb ; a++ ){
+    for ( int a = 0 ; a < Reverb ; a++ ){
 	   
         ptr2 = echo_ptr + slow_reverb[ a ];
        
         if( ptr2 < 0 )
-            ptr2 += ( echo_size * 2 ) * ( 1 - ( ptr2 / ( echo_size * 2 ) ) );
+            ptr2 += ( Echo_Size * 2 ) * ( 1 - ( ptr2 / ( Echo_Size * 2 ) ) );
         
-        if( ptr2 >= ( echo_size * 2 ) )
-            ptr2 -= ( echo_size * 2 ) * ( ptr2 / ( echo_size * 2 ) );
+        if( ptr2 >= ( Echo_Size * 2 ) )
+            ptr2 -= ( Echo_Size * 2 ) * ( ptr2 / ( Echo_Size * 2 ) );
         
         if( a & 1 )
             echo_buf1[ ptr2 ] += v1 / 6;
@@ -1065,21 +1085,19 @@ static inline void echo_put ( float v1 , float v2 ){
 }
 
 
-static inline void reverb_put ( float v1 , float v2 ){
-    
-    int ptr2;
-    
-    //  Slow Reverb
+//  Slow Reverb
 
-    for( int a = 0 ; a < reverb ; a++ ){
+static inline void putReverb ( float v1 , float v2 ){
+    
+    for( int a = 0 ; a < Reverb ; a++ ){
 	    
-        ptr2 = echo_ptr + slow_reverb[ a ];
+        int ptr2 = echo_ptr + slow_reverb[ a ];
 	
         if( ptr2 < 0 )
-            ptr2 += ( echo_size * 2 ) * ( 1 - ( ptr2 / (echo_size * 2) ) );
+            ptr2 += ( Echo_Size * 2 ) * ( 1 - ( ptr2 / (Echo_Size * 2) ) );
 	
-        if( ptr2 >= ( echo_size * 2 ) )
-            ptr2 -= ( echo_size * 2 ) * ( ptr2 / (echo_size * 2) );
+        if( ptr2 >= ( Echo_Size * 2 ) )
+            ptr2 -= ( Echo_Size * 2 ) * ( ptr2 / (Echo_Size * 2) );
 	
         if( a & 1 )
             echo_buf1[ ptr2 ] += v1 / 6;
@@ -1089,28 +1107,28 @@ static inline void reverb_put ( float v1 , float v2 ){
 }
 
 
-static inline void echo_get ( float * v1 , float * v2 ){
+static inline void getEcho ( float * v1 , float * v2 ){
 
     * v1 += echo_buf1[ echo_ptr ];
     * v2 += echo_buf2[ echo_ptr ];
     
     echo_ptr++;
     
-    if( echo_ptr < echo_size * 2 )
+    if( echo_ptr < Echo_Size * 2 )
         return;
 
     echo_ptr = 0;
     
-    int r = ( ( rand() & 255 ) * (echo_size/2) ) >> 8;
+    int r = ( ( rand() & 255 ) * (Echo_Size/2) ) >> 8;
     
-    r += echo_size;
+    r += Echo_Size;
 
-    for ( int a = 0 ; a < ( echo_size * 2 ) ; a++ ){
+    for ( int a = 0 ; a < ( Echo_Size * 2 ) ; a++ ){
 
         int ptr2 = a - r;
         
         if( ptr2 < 0 )
-            ptr2 += ( echo_size * 2 );
+            ptr2 += ( Echo_Size * 2 );
         
         echo_buf1[ a ] = ( echo_buf1[ a ] + echo_buf1[ ptr2 ] ) / 2;
         echo_buf2[ a ] = ( echo_buf2[ a ] + echo_buf2[ ptr2 ] ) / 2;
@@ -1118,25 +1136,29 @@ static inline void echo_get ( float * v1 , float * v2 ){
 }
 
 
+
+void clearBuffer ( float * buffer , int frames ){
+
+    int length = frames * 2;
+
+    for ( int offset = 0 ; offset < length ; offset++ )
+        buffer [ offset ] = 0;
+}
+
+
+
 float bound = 0.05;
 int offset = 0;
 
 
-void main_callback ( float * buf , int len ){
+void play ( float * buffer , int len ){
 
-    uint8_t * cur_line;
-    
     float res1, res2;
     float freq;
     
 
-    //  Clear Buffer
+    clearBuffer(buffer,len);
 
-    for ( int a = 0 ; a < len ; a++ ){
-        buf[ ( a << 1 ) + 1 ] = 0;
-        buf[ ( a << 1 ) + 0 ] = 0;
-    }
-    
 
     //  Render
     
@@ -1144,379 +1166,423 @@ void main_callback ( float * buf , int len ){
     
     for ( int a = 0 ; a < len ; a++ ){
 
-	tick_changed = 0;
+        tick_changed = 0;
 
-    // Increment Tick Number
+        // Increment Tick Number
 
-	if( timer >= one_tick_size ){ 
-	    timer = 0;
-        tick++;
-	}
+        if( timer >= Tick_Size ){ 
+            timer = 0;
+            tick++;
+        }
 
-	if( timer == 0 )
-        tick_changed = 1;
-	
-    //  Synths Channels
-	
-    for ( int s = 0 ; s < chan_num ; s++ ){
+        if( timer == 0 )
+            tick_changed = 1;
+        
+        //  Synths Channels
+        
+        for ( int s = 0 ; s < Channel_Count ; s++ ){
 
-	    cur_line = patterns[ cur_pattern ] + ( tick * chan_num );
-	    
-        // End of Pattern
-
-        if( cur_line[ s ] == 255 ){
-
-            cur_pattern++;
-		    tick = 0;
+            uint8_t * line = 
+                patterns[ pattern ] + 
+                ( tick * Channel_Count );
             
-            if( patterns[ cur_pattern ] == 0 ){
-                exit_request = 1;
-                return;
+            // End of Pattern
+
+            if( line[ s ] == 255 ){
+
+                pattern++;
+                tick = 0;
+                
+                if( patterns[ pattern ] == 0 ){
+                    exit_request = 1;
+                    return;
+                }
+
+                line = 
+                    patterns[ pattern ] + 
+                    ( tick * Channel_Count );
             }
 
-            cur_line = patterns[ cur_pattern ] + ( tick * chan_num );
-	    }
+            if( syn[ s ] == 0 )
+                continue;
+            
+            switch( syn[ s ] ){
+            case SYNTH_PAD : 
 
-	    if( syn[ s ] == 0 )
-            continue;
-	    
-        switch( syn[ s ] ){
-		case SYNTH_PAD : 
+                if( tick_changed ){
 
-		    if( tick_changed ){
+                    if( line[ s ] ){
+                        effect_timer1[ s ] = 1;
+                        bass_freq[ s ] = pow( 2, (float)( line[ s ] + offset ) / 12.0F );
+                        bass_tdelta[ s ] = bass_freq[ s ] / srate;
+                        bass_timer[ s ] = 0;
+                    }
 
-                if( cur_line[ s ] ){
-                    effect_timer1[ s ] = 1;
-                    bass_freq[ s ] = pow( 2, (float)( cur_line[ s ] + offset ) / 12.0F );
-                    bass_tdelta[ s ] = bass_freq[ s ] / srate;
-                    bass_timer[ s ] = 0;
+                    if( line[ s ] == 254 )
+                        effect_timer1[ s ] = 0;
+
+                    if( line[ s ] == 253 ){
+                        effect_timer1[ s ] = 0;
+                        bound = 0.1;
+                    }
                 }
 
-                if( cur_line[ s ] == 254 )
-                    effect_timer1[ s ] = 0;
+                if( effect_timer1[ s ] ){
 
-                if( cur_line[ s ] == 253 ){
-                    effect_timer1[ s ] = 0;
-                    bound = 0.1;
+                    effect_timer1[ s ] *= 0.99998;
+                    
+                    bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 2000;
+                    bass_timer[ s ] += bass_delta[ s ];
+                    
+                    float bass = bass_timer[s];
+
+                    res2 = res1 = cos( bass * 0.99 );
+
+                    res1 += 
+                        sin( bass * (sin( effect_timer1[ s ] ) * 0.02) ) *
+                        sin( bass );
+                    
+                    res2 += cos( bass * 1.01 );
+                    
+                    res1 = limit(res1,-1,1);
+                    res2 = limit(res2,-1,1);
+
+                } else {
+                    res1 = 0;
+                    res2 = 0;
                 }
-		    }
 
-		    if( effect_timer1[ s ] ){
-
-                effect_timer1[ s ] *= 0.99998;
+                putEcho( 
+                    res1 / 8 ,
+                    res2 / 8
+                );
                 
-                bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 2000;
-                bass_timer[ s ] += bass_delta[ s ];
-                
-                res1 = sin( bass_timer[ s ] ) * sin( bass_timer[ s ] * (sin( effect_timer1[ s ] ) * 0.02) ) + cos( bass_timer[ s ] * 0.99 );
-                res2 = cos( bass_timer[ s ] * 1.01 ) + cos( bass_timer[ s ] * 0.99 );
-                
-                if( res1 > 1 ) res1 = 1;
-                if( res1 < -1 ) res1 = -1;
-                if( res2 > 1 ) res2 = 1;
-                if( res2 < -1 ) res2 = -1;
-		    } else {
                 res1 = 0;
                 res2 = 0;
-		    }
+                
+                break;
+            case SYNTH_POLY :
 
-		    echo_put( res1 / 8, res2 / 8 );
-		    
-            res1 = 0;
-		    res2 = 0;
-		    
-            break;
-		case SYNTH_POLY :
+                if( tick_changed )
+                    if( line[ s ] ){
+                        effect_timer1[ s ] = 1;
+                        bass_freq[ s ] = pow( 2, (float)( line[ s ] + offset ) / 12.0F );
+                        bass_tdelta[ s ] = bass_freq[ s ] / srate;
+                        bass_timer[ s ] = 0;
+                    }
 
-		    if( tick_changed )
-                if( cur_line[ s ] ){
-                    effect_timer1[ s ] = 1;
-                    bass_freq[ s ] = pow( 2, (float)( cur_line[ s ] + offset ) / 12.0F );
-                    bass_tdelta[ s ] = bass_freq[ s ] / srate;
-                    bass_timer[ s ] = 0;
+                if( effect_timer1[ s ] ){
+               
+                    effect_timer1[ s ] *= 0.99998;
+               
+                    bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 1800;
+                    bass_timer[ s ] += bass_delta[ s ];
+                    
+                    res2 = res1 = effect_timer1[ s ];
+
+                    res1 *= sin( bass_timer[ s ] );
+                    res2 *= sin( bass_timer[ s ] * 1.01 );
+               
+                } else {
+                    res1 = 0;
+                    res2 = 0;
                 }
 
-		    if( effect_timer1[ s ] ){
-                effect_timer1[ s ] *= 0.99998;
-                bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 1800;
-                bass_timer[ s ] += bass_delta[ s ];
-                res1 = sin( bass_timer[ s ] ) * effect_timer1[ s ];
-                res2 = sin( bass_timer[ s ] * 1.01 ) * effect_timer1[ s ];
-		    } else {
+                buffer[ ( a << 1 ) + 1 ] += res2 / 8;
+                buffer[ ( a << 1 ) + 0 ] += res1 / 8;
+
+                putEcho( 
+                    res1 / 4 , 
+                    res2 / 4 
+                );
+
                 res1 = 0;
                 res2 = 0;
-		    }
 
-		    buf[ ( a << 1 ) + 1 ] += res2 / 8;
-		    buf[ ( a << 1 ) ] += res1 / 8;
+                break;
+            case SYNTH_EFFECT :
 
-		    echo_put( res1 / 4, res2 / 4 );
+                if( tick_changed ){
 
-		    res1 = 0;
-		    res2 = 0;
+                    if( line[ s ] ){
+                        effect_timer1[ s ] = 1;
+                        effect_timer2[ s ] = 0;
+                    }
 
-		    break;
-		case SYNTH_EFFECT :
+                    if( line[ s ] == 5 ){
+                        effect_lowfilter[ s ] = 4;
+                        rec_play = 1;
+                    }
 
-		    if( tick_changed ){
+                    if( line[ s ] == 4 )
+                        effect_lowfilter[ s ] = 3;
+                    
+                    if( line[ s ] == 3 )
+                        effect_lowfilter[ s ] = 2;
+                    
+                    if( line[ s ] == 2 )
+                        effect_lowfilter[ s ] = 1;
+                    
+                    if( line[ s ] == 1 )
+                        effect_lowfilter[ s ] = 0;
+                }
 
-                if( cur_line[ s ] ){
+                if( effect_timer1[ s ] ){
+
+                    effect_timer1[ s ] *= 0.99996;
+                    effect_timer2[ s ] += 0.2;
+
+                    if( effect_lowfilter[ s ] == 4 ){
+                        effect_timer1[ s ] = 1;
+                    } else
+                    if( effect_lowfilter[ s ] == 3 ){
+                        res2 = sin( ( effect_timer2[ s ] * 1 ) * effect_timer1[ s ] ) * effect_timer1[ s ]; 
+                        res1 = sin( ( effect_timer2[ s ] * 1.5 ) / effect_timer1[ s ] ) * effect_timer1[ s ];
+                    } else
+                    if( effect_lowfilter[ s ] == 2 ){
+                        res2 = sin( ( effect_timer2[ s ] / 4 ) / effect_timer1[ s ] ) * effect_timer1[ s ]; 
+                        res1 = sin( ( effect_timer2[ s ] / 3.5 ) / effect_timer1[ s ] ) * effect_timer1[ s ];
+                    } else
+                    if( effect_lowfilter[ s ] == 1 ){
+                        res2 = sin( ( effect_timer2[ s ] / 2 ) / effect_timer1[ s ] ) * effect_timer1[ s ]; 
+                        res1 = sin( ( effect_timer2[ s ] / 2.5 ) / effect_timer1[ s ] ) * effect_timer1[ s ];
+                    } else {
+                        res2 = res1 = sin( effect_timer2[ s ] / effect_timer1[ s ] ) * effect_timer1[ s ];
+                    }
+                } else {
+                    res1 = 0;
+                    res2 = 0;
+                }
+
+                buffer[ ( a << 1 ) + 1 ] += ( res2 / 9.0F );
+                buffer[ ( a << 1 ) + 0 ] += ( res1 / 9.0F );
+
+                if( effect_lowfilter[ s ] != 4 )
+                    putEcho( res1 / 5, res2 / 5 );
+                
+                res1 = 0;
+                res2 = 0;
+                
+                break;
+            case SYNTH_ACID_BASS:
+
+                if( tick_changed ){
+                    
+                    bass_freq[ s ] = pow( 2, (float)( line[ s ] + offset ) / 12.0F );
+                    bass_tdelta[ s ] = bass_freq[ s ] / srate;
+                    bass_timer[ s ] = 0;
+                    
                     effect_timer1[ s ] = 1;
                     effect_timer2[ s ] = 0;
                 }
 
-                if( cur_line[ s ] == 5 ){
-                    effect_lowfilter[ s ] = 4;
-                    rec_play = 1;
-                }
-
-                if( cur_line[ s ] == 4 )
-                    effect_lowfilter[ s ] = 3;
+                bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 300;
+                bass_timer[ s ] += bass_delta[ s ];
                 
-                if( cur_line[ s ] == 3 )
-                    effect_lowfilter[ s ] = 2;
+                effect_timer2[ s ] += 0.02 * (32 - (float)tick);
+                effect_timer1[ s ] *= 0.9997;
                 
-                if( cur_line[ s ] == 2 )
-                    effect_lowfilter[ s ] = 1;
-                
-                if( cur_line[ s ] == 1 )
-                    effect_lowfilter[ s ] = 0;
-		    }
+                if( line[ s ] ){
+                    
+                    res2 = res1 = 
+                        sin( bass_timer[ s ] ) + 
+                        sin( bass_timer[ s ] * 4.01 ) * 0.9;
+                    
+                    if( res1 > 0.2 )
+                        res1 = 0.1;
+                    
+                    if( res1 < -0.2 )
+                        res1 = -0.1;
+                    
+                    if( res2 > 0.2 )
+                        res2 = 0.1;
+                    
+                    if( res2 < -0.2 )
+                        res2 = -0.1;
+                    
+                    res1 *= effect_timer1[ s ];
+                    res2 *= effect_timer1[ s ];
 
-		    if( effect_timer1[ s ] ){
-
-                effect_timer1[ s ] *= 0.99996;
-                effect_timer2[ s ] += 0.2;
-
-                if( effect_lowfilter[ s ] == 4 ){
-                    effect_timer1[ s ] = 1;
-                } else
-                if( effect_lowfilter[ s ] == 3 ){
-                    res2 = sin( ( effect_timer2[ s ] * 1 ) * effect_timer1[ s ] ) * effect_timer1[ s ]; 
-                    res1 = sin( ( effect_timer2[ s ] * 1.5 ) / effect_timer1[ s ] ) * effect_timer1[ s ];
-                } else
-                if( effect_lowfilter[ s ] == 2 ){
-                    res2 = sin( ( effect_timer2[ s ] / 4 ) / effect_timer1[ s ] ) * effect_timer1[ s ]; 
-                    res1 = sin( ( effect_timer2[ s ] / 3.5 ) / effect_timer1[ s ] ) * effect_timer1[ s ];
-                } else
-                if( effect_lowfilter[ s ] == 1 ){
-                    res2 = sin( ( effect_timer2[ s ] / 2 ) / effect_timer1[ s ] ) * effect_timer1[ s ]; 
-                    res1 = sin( ( effect_timer2[ s ] / 2.5 ) / effect_timer1[ s ] ) * effect_timer1[ s ];
                 } else {
-                    res2 = res1 = sin( effect_timer2[ s ] / effect_timer1[ s ] ) * effect_timer1[ s ];
+                    res1 = 0;
+                    res2 = 0;
                 }
-		    } else {
-                res1 = 0;
-                res2 = 0;
-		    }
 
-		    buf[ ( a << 1 ) + 1 ] += ( res2 / 9.0F );
-		    buf[ ( a << 1 ) ] += ( res1 / 9.0F );
+                putEcho( res1, res2 );
+                
+                buffer[ ( a << 1 ) + 1 ] += res2;
+                buffer[ ( a << 1 ) + 0 ] += res1;
+                
+                break;
+            case SYNTH_BASS_TINY :
+            case SYNTH_BASS :
 
-		    if( effect_lowfilter[ s ] != 4 )
-            	echo_put( res1 / 5, res2 / 5 );
-		    
-            res1 = 0;
-		    res2 = 0;
-		    
-            break;
-		case SYNTH_ACID_BASS:
+                if( tick_changed ){
+                    bass_freq[ s ] = pow( 2, (float)( line[ s ] + offset ) / 12.0F );
+                    bass_tdelta[ s ] = bass_freq[ s ] / srate;
+                    bass_timer[ s ] = 0;
+                    effect_timer1[ s ] = 1;
+                }
 
-		    if( tick_changed ){
+                bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 300;
+                bass_timer[ s ] += bass_delta[ s ];
                 
-                bass_freq[ s ] = pow( 2, (float)( cur_line[ s ] + offset ) / 12.0F );
-                bass_tdelta[ s ] = bass_freq[ s ] / srate;
-                bass_timer[ s ] = 0;
-                
-                effect_timer1[ s ] = 1;
-                effect_timer2[ s ] = 0;
-		    }
+                effect_timer1[ s ] *= 0.9999;
 
-		    bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 300;
-		    bass_timer[ s ] += bass_delta[ s ];
-		    
-            effect_timer2[ s ] += 0.02 * (32 - (float)tick);
-		    effect_timer1[ s ] *= 0.9997;
-		    
-            if( cur_line[ s ] ){
-                
-                res2 = res1 = sin( bass_timer[ s ] ) + ( sin( bass_timer[ s ] * 4.01 ) * 0.9 );
-                
-                if( res1 > 0.2 )
-                    res1 = 0.1;
-                
-                if( res1 < -0.2 )
-                    res1 = -0.1;
-                
-                if( res2 > 0.2 )
-                    res2 = 0.1;
-                
-                if( res2 < -0.2 )
-                    res2 = -0.1;
-                
-                res1 *= effect_timer1[ s ];
-                res2 *= effect_timer1[ s ];
-		    } else {
-                res1 = 0;
-                res2 = 0;
-            }
+                if( line[ s ] ){
 
-		    echo_put( res1, res2 );
-		    
-		    buf[ ( a << 1 ) + 1 ] += res2;
-            buf[ ( a << 1 ) ] += res1;
-		    
-            break;
-		case SYNTH_BASS_TINY :
-		case SYNTH_BASS :
+                    res1 = 
+                        sin( bass_timer[ s ] ) + 
+                        sin( bass_timer[ s ] * 2.01 );
+                    
+                    res2 = 
+                        cos( bass_timer[ s ] ) + 
+                        cos( bass_timer[ s ] * 2.006 );
+                    
+                    if( res1 > bound )
+                        res1 = 0.05;
+                    
+                    if( res1 < -bound )
+                        res1 = -0.05;
+                    
+                    if( res2 > bound )
+                        res2 = 0.05;
+                    
+                    if( res2 < -bound )
+                        res2 = -0.05;
 
-		    if( tick_changed ){
-                bass_freq[ s ] = pow( 2, (float)( cur_line[ s ] + offset ) / 12.0F );
-                bass_tdelta[ s ] = bass_freq[ s ] / srate;
-                bass_timer[ s ] = 0;
-                effect_timer1[ s ] = 1;
-		    }
+                } else {
+                    res1 = 0;
+                    res2 = 0;
+                }
 
-		    bass_delta[ s ] += ( bass_tdelta[ s ] - bass_delta[ s ] ) / 300;
-		    bass_timer[ s ] += bass_delta[ s ];
-		    effect_timer1[ s ] *= 0.9999;
-
-		    if( cur_line[ s ] ){
-
-                res1 = sin( bass_timer[ s ] ) + sin( bass_timer[ s ] * 2.01 );
-                res2 = cos( bass_timer[ s ] ) + cos( bass_timer[ s ] * 2.006 );
+                if( bound > 0.1 ){
+                    res1 *= effect_timer1[ s ];
+                    res2 *= effect_timer1[ s ];
+                }
                 
-                if( res1 > bound )
-                    res1 = 0.05;
-                
-                if( res1 < -bound )
-                    res1 = -0.05;
-                
-                if( res2 > bound )
-                    res2 = 0.05;
-                
-                if( res2 < -bound )
-                    res2 = -0.05;
-		    } else {
-                res1 = 0;
-                res2 = 0;
-		    }
-
-		    if( bound > 0.1 ){
-                res1 *=  effect_timer1[ s ];
-                res2 *= effect_timer1[ s ];
-            }
-		    
-            if( syn[ s ] == SYNTH_BASS_TINY ){
-    			res1 *= 0.9; res2 *= 0.9;
-		    } else {
+                if( syn[ s ] == SYNTH_BASS_TINY ){
+                    res1 *= 0.9;
+                    res2 *= 0.9;
+                } else
                 if( !rec_play ){
-                    flanger_put( res1, res2 );
-                    res1 /= 1.5; res2 /= 1.5;
-                    flanger_get( &res1, &res2 );
+                   
+                    putFlanger( res1, res2 );
+                    
+                    res1 /= 1.5;
+                    res2 /= 1.5;
+                    
+                    getFlanger( &res1, &res2 );
                 }
-		    }
 
-		    echo_put( res1, res2 );
-		    
-		    buf[ ( a << 1 ) + 1 ] += res2;
-            buf[ ( a << 1 ) ] += res1;
-		    
-            break;
-		case SYNTH_HAT :
-
-		    if( tick_changed ){
-
-                if( cur_line[ s ] )
-                    hat_timer[ s ] = 2;
+                putEcho( res1, res2 );
                 
-                if( cur_line[ s ] == 254 ){
-                    offset++;
-                    fadeout = 1;
+                buffer[ ( a << 1 ) + 1 ] += res2;
+                buffer[ ( a << 1 ) + 0 ] += res1;
+                
+                break;
+            case SYNTH_HAT :
+
+                if( tick_changed ){
+
+                    if( line[ s ] )
+                        hat_timer[ s ] = 2;
+                    
+                    if( line[ s ] == 254 ){
+                        fadeout = 1;
+                        offset++;
+                        break;
+                    }
+
+                    if( line[ s ] == 253 ){
+                        syn[ 3 ] = SYNTH_ACID_BASS;
+                        start_recorder = 1;
+                    }
+
+                    if( line[ s ] == 252 )
+                        offset --;
+                }
+
+                if( line[ s ] == 254 )
+                    break;
+                
+                if( line[ s ] == 253 )
+                    break;
+                
+                if( line[ s ] == 252 )
+                    break;
+                
+                hat_timer[ s ] -= 0.0004;
+                
+                if( hat_timer[ s ] < 0 ){
+                    hat_timer[ s ] = 0;
                     break;
                 }
-
-                if( cur_line[ s ] == 253 ){
-                    syn[ 3 ] = SYNTH_ACID_BASS;
-                    start_recorder = 1;
-                }
-
-                if( cur_line[ s ] == 252 )
-                    offset --;
-		    }
-
-		    if( cur_line[ s ] == 254 )
-                break;
-		    
-            if( cur_line[ s ] == 253 )
-                break;
-		    
-            if( cur_line[ s ] == 252 )
-                break;
-		    
-            hat_timer[ s ] -= 0.0004;
-		    
-            if( hat_timer[ s ] < 0 ){
-                hat_timer[ s ] = 0;
-                break;
-            }
-		    
-            res1 = ( ( (float)(randomize()&0x7FFF) / 32000.0F ) - 0.5 ) * ( (float)cur_line[ s ] / 10.0F );
-		    res2 = ( ( (float)(randomize()&0x7FFF) / 32000.0F ) - 0.5 ) * ( (float)cur_line[ s ] / 10.0F );
-		    
-            if( res1 > hat_old1[ s ] )
-                hat_old1[ s ] += 0.03;
-		    
-            if( res1 < hat_old1[ s ] )
-                hat_old1[ s ] -= 0.03;
-		    
-            if( res2 > hat_old2[ s ] )
-                hat_old2[ s ] += 0.03;
-		    
-            if( res2 < hat_old2[ s ] )
-                hat_old2[ s ] -= 0.03;
-
-		    res1 = hat_old1[ s ];
-		    res2 = hat_old2[ s ];
-
-		    hat_old1[ s ] = res1;
-		    hat_old2[ s ] = res2;
-
-		    res1 *= hat_timer[ s ] * ( (float)cur_line[ s ] / 100.0F );
-		    res2 *= hat_timer[ s ] * ( (float)cur_line[ s ] / 100.0F );
-
-		    buf[ ( a << 1 ) ] += res1 / 1.8;
-		    buf[ ( a << 1 ) + 1 ] += res2 / 1.8;
-
-		    break;
-		case SYNTH_DRUM :
-
-		    if( tick_changed ){
-                if( cur_line[ s ] ){
-                    drum_timer1[ s ] = 1;
-                    drum_timer2[ s ] = 0;
-                    drum_timer3[ s ] = 1;
-                }
-		    }
-
-		    drum_timer1[ s ] -= 0.001;
-		    drum_timer2[ s ] += 0.03;
-		    drum_timer3[ s ] += 0.003;
-		    
-            if( drum_timer1[ s ] < 0 ){
-                drum_timer1[ s ] = 0;
-                break;
-            }
-		    
-            if( 0 ){
-                res1 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 12.0F ) * sinf( ((float)cur_line[ s ] / 70) * drum_timer2[ s ] / drum_timer3[ s ] );
-                res2 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 12.0F ) * sinf( drum_timer2[ s ] / drum_timer3[ s ] + 2 );
-		    } else {
                 
-                res1 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 20.0F ) * sinf( ((float)cur_line[ s ] / 70) * drum_timer2[ s ] / drum_timer3[ s ] );
-                res2 = res1;
-			
-                float d2 = drum_timer1[ s ] * ( (float)cur_line[ s ] / 120.0F ) * sinf( drum_timer2[ s ] / drum_timer3[ s ] + 2 );
+                res2 = res1 = ( (float) line[ s ] / 10.0F );
+
+                res1 *= (((float)( randomize() & 0x7FFF ) / 32000.0F ) - 0.5 );
+                res2 *= (((float)( randomize() & 0x7FFF ) / 32000.0F ) - 0.5 );
+                
+                if( res1 > hat_old1[ s ] )
+                    hat_old1[ s ] += 0.03;
+                
+                if( res1 < hat_old1[ s ] )
+                    hat_old1[ s ] -= 0.03;
+                
+                if( res2 > hat_old2[ s ] )
+                    hat_old2[ s ] += 0.03;
+                
+                if( res2 < hat_old2[ s ] )
+                    hat_old2[ s ] -= 0.03;
+
+                res1 = hat_old1[ s ];
+                res2 = hat_old2[ s ];
+
+                hat_old1[ s ] = res1;
+                hat_old2[ s ] = res2;
+
+                float hat_factor = hat_timer[ s ] * ( (float) line[ s ] / 100.0F );
+
+                res1 *= hat_factor;
+                res2 *= hat_factor;
+
+                buffer[ ( a << 1 ) + 0 ] += res1 / 1.8;
+                buffer[ ( a << 1 ) + 1 ] += res2 / 1.8;
+
+                break;
+            case SYNTH_DRUM :
+
+                if( tick_changed )
+                    if( line[ s ] ){
+                        drum_timer1[ s ] = 1;
+                        drum_timer2[ s ] = 0;
+                        drum_timer3[ s ] = 1;
+                    }
+
+                drum_timer1[ s ] -= 0.001;
+                drum_timer2[ s ] += 0.03;
+                drum_timer3[ s ] += 0.003;
+                
+                if( drum_timer1[ s ] < 0 ){
+                    drum_timer1[ s ] = 0;
+                    break;
+                }
+           
+
+                float drum_ratio = drum_timer2[ s ] / drum_timer3[ s ];
+
+                float l = line[s];
+                
+                res2 = res1 = 
+                    sinf( ( l / 70) * drum_ratio ) *
+                    drum_timer1[ s ] * 
+                    ( l / 20.0F ) ;
+            
+                float d2 = 
+                    sinf( drum_ratio + 2 ) *
+                    drum_timer1[ s ] * 
+                    ( l / 120.0F ) ;
                 
                 if( tick & 1 ){
                     res1 *= 0.3f;
@@ -1525,84 +1591,76 @@ void main_callback ( float * buf , int len ){
                     res2 *= 0.3f;
                     res2 += d2;
                 }
-		    }
 
-		    float clip = 0.3;
-		    
-            if( res1 > clip )
-                res1 = clip;
-		    
-            if( res1 < -clip )
-                res1 = -clip;
-		    
-            if( res2 > clip )
-                res2 = clip;
-		    
-            if( res2 < -clip )
-                res2 = -clip;
-		    
-            buf[ ( a << 1 ) ] += res1;
-		    buf[ ( a << 1 ) + 1 ] += res2;
-		    
-            res1 = 0;
-		    res2 = 0;
-		    
-            break;
-	    }
-	}
 
-	echo_get( & res1 , & res2 );
+                float clip = 0.3;
 
-	buf[ ( a << 1 ) ] += res1;
-	buf[ ( a << 1 ) + 1 ] += res2;
-
-	if( start_recorder ){
-	    
-        rec1[ rec_ptr ] = buf[ ( a << 1 ) ];
-	    rec2[ rec_ptr ] = buf[ ( a << 1 ) + 1 ];
-
-	    rec_ptr++;
-
-	    if( rec_ptr >= rec_size ){
-            start_recorder = 0;
-            rec_ptr --;
-	    }
-	}
-
-	if( rec_play ){
-
-	    flanger_put( 
-            rec1[ rec_ptr ] / 2 ,
-            rec2[ rec_ptr ] / 2
-        );
-	    
-        res1 = 0; res2 = 0;
-	    
-        flanger_get( & res1 , & res2 );
-	    
-        buf[ ( a << 1 ) ] += res1;
-    	buf[ ( a << 1 ) + 1 ] += res2;
-	    
-        rec_ptr--;
-	    
-        if( rec_ptr < 0 )
-            rec_ptr = rec_size - 1;
-	}
-
-	timer++;
-	
-    if( fadeout ){
-
-	    fadeout_vol -= 0.000001;
-	    
-        if( fadeout_vol <= 0 ){
-            exit_request = 1;
-            fadeout_vol = 0;
+                res1 = ranged(res1,clip);
+                res2 = ranged(res2,clip);
+                
+                buffer[ ( a << 1 ) + 1 ] += res2;
+                buffer[ ( a << 1 ) + 0 ] += res1;
+                
+                res1 = 0;
+                res2 = 0;
+                
+                break;
+            }
         }
-	    
-	    buf[ ( a << 1 ) + 1 ] *= fadeout_vol;
-        buf[ ( a << 1 ) ] *= fadeout_vol;
-	}
+
+        getEcho( & res1 , & res2 );
+
+        buffer[ ( a << 1 ) + 1 ] += res2;
+        buffer[ ( a << 1 ) ] += res1;
+
+        if( start_recorder ){
+            
+            rec1[ rec_ptr ] = buffer[ ( a << 1 ) + 0 ];
+            rec2[ rec_ptr ] = buffer[ ( a << 1 ) + 1 ];
+
+            rec_ptr++;
+
+            if( rec_ptr >= rec_size ){
+                start_recorder = 0;
+                rec_ptr --;
+            }
+        }
+
+        if( rec_play ){
+
+            putFlanger( 
+                rec1[ rec_ptr ] / 2 ,
+                rec2[ rec_ptr ] / 2
+            );
+            
+            res1 = 0;
+            res2 = 0;
+            
+            getFlanger( & res1 , & res2 );
+            
+            buffer[ ( a << 1 ) + 1 ] += res2;
+            buffer[ ( a << 1 ) + 0 ] += res1;
+            
+            rec_ptr--;
+            
+            if( rec_ptr < 0 )
+                rec_ptr = rec_size - 1;
+        }
+
+        timer++;
+        
+        if( fadeout ){
+
+            fadeout_vol -= 0.000001;
+            
+            if( fadeout_vol <= 0 ){
+                exit_request = 1;
+                fadeout_vol = 0;
+            }
+            
+            buffer[ ( a << 1 ) + 0 ] *= fadeout_vol;
+            buffer[ ( a << 1 ) + 1 ] *= fadeout_vol;
+        }
     }
 }
 
@@ -1618,7 +1676,7 @@ void main_callback ( float * buf , int len ){
 
 void renderBuffer( float * buffer , int length ){
 
-    main_callback( buffer , length );
+    play( buffer , length );
 
     //  Simple DC Blocker
     
@@ -1822,7 +1880,7 @@ int exportWAV ( const char * path ){
 
 int sound_init ( const char * path ){
 
-    for ( int a = 0 ; a < reverb ; a++ )
+    for ( int a = 0 ; a < Reverb ; a++ )
         slow_reverb[ a ] = ( ( rand() & 2047 ) - 1024 ) << 6;
     
     if( out_mode == 0 ){
