@@ -1,4 +1,8 @@
 
+# VSCode configuration
+
+.vscode/
+
 # Don't include generated files
 
 /ps

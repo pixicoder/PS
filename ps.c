@@ -24,8 +24,10 @@
 #endif
 
 
-//  Number of Synth Channels
 
+#define Flanger_Max_Size 100
+
+//  Number of Synth Channels
 #define Channel_Count 8
 
 #define Tick_Size 6000
@@ -33,8 +35,6 @@
 #define Echo_Size ( Tick_Size * 3 )
 
 #define Reverb 16
-
-#define Flanger_Max_Size 100
 
 
 
@@ -47,9 +47,14 @@ int fadeout = 0;
 
 float volume = 1.2;
 
-int timer = 0; //0...Tick_Size
-int tick = 0; //0...pattern size (number of lines)
-int pattern = 0; //0...number of patterns
+//  0 .. Tick_Size
+int timer = 0;
+
+//  0 .. Pattern Size (number of lines)
+int tick = 0;
+
+//  0 .. Number of Patterns
+int pattern = 0;
 
 float
     dc_s_left = 0 ,
@@ -62,7 +67,14 @@ float
 float loudest = 1;
 
 int stop_execution = 0;
-int out_mode = 0; //0 - SDL; 1 - WAV EXPORT;
+
+
+/*
+ *  0 : SDL
+ *  1 : WAV Export
+ */
+
+int out_mode = 0;
 
 
 
@@ -1824,6 +1836,7 @@ void renderBuffer( float * buffer , int length ){
             dc_ps_right * ratio_left +
             dc_s_right * ratio_right ;
     	
+
         //  Simple Volume Compression
         
         buffer[ a * 2 + 0 ] /= loudest;
@@ -1844,8 +1857,13 @@ void renderBuffer( float * buffer , int length ){
 }
 
 
-void sdl_audio_callback ( void * udata , Uint8 * stream , int len ){
-    renderBuffer( (float *) stream , len / 8 );
+void onRequestAudio ( void * userData , Uint8 * stream , int length ){
+
+    //  4 x Bytes Per Float * 2 x LR Channels
+
+    int frames = length / ( 4 * 2 );
+
+    renderBuffer( (float *) stream , frames );
 }
 
 
@@ -2003,7 +2021,7 @@ int playAudio (){
     SDL_Init( 0 );
         
     SDL_AudioSpec a;
-    a.callback = sdl_audio_callback;
+    a.callback = onRequestAudio;
     a.userdata = NULL;
     a.channels = 2;
     a.samples = bufsize;
