@@ -40,7 +40,7 @@
 
 
 int bufsize = 1024;
-int srate = 44100;
+int fps = 44100;
 
 float fadeout_vol = 1;
 int fadeout = 0;
@@ -1019,13 +1019,11 @@ int start_recorder = 0;
 
 int 
     rec_play = 0 ,
-    rec_ptr = 0 ;
+    recoder_frame = 0 ;
 
 #define rec_size ( Tick_Size * 16 )
 
-float 
-    rec1[ rec_size ] ,
-    rec2[ rec_size ] ;
+
 
 
 static inline void putFlanger ( float v1 , float v2 ){
@@ -1057,9 +1055,15 @@ static inline void getFlanger ( float * v1 , float * v2 ){
 
     flanger_timer += 0.0001;
 
-    flanger_size = (rec_play)
-        ? 580
-        : ( ( sin( flanger_timer / 10 ) + 1 ) / 2 ) * ( Flanger_Max_Size - 30 ) + 30;
+    if(rec_play){
+        flanger_size = 580;
+        return;
+    }
+
+    flanger_size = sin( flanger_timer / 10 ) + 1;
+    flanger_size /= 2;
+    flanger_size *= ( Flanger_Max_Size - 30 );
+    flanger_size += 30;
 }
 
 
@@ -1210,14 +1214,16 @@ void Pad ( struct PlayState * state ){
     int channel = state -> channel;
     uint8_t note = state -> note;
 
-    float left , right;
+    float 
+        right = 0 ,
+        left = 0 ; 
 
     if( state -> tick_changed ){
 
         if( note ){
             effect_timer1[ channel ] = 1;
             bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
-            bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
+            bass_tdelta[ channel ] = bass_freq[ channel ] / fps;
             bass_timer[ channel ] = 0;
         }
 
@@ -1250,15 +1256,9 @@ void Pad ( struct PlayState * state ){
         right = limit(right,-1,1);
         left = limit(left,-1,1);
 
-    } else {
-        left = 0;
-        right = 0;
     }
 
-    putEcho( 
-        left / 8 ,
-        right / 8
-    );
+    putEcho( left / 8 , right / 8 );
 
     setFrame(0,0)
 }
@@ -1269,15 +1269,20 @@ void Poly ( struct PlayState * state ){
     uint8_t note = state -> note;
     int channel = state -> channel;
     
-    float left , right;
 
     if( state -> tick_changed )
         if( note ){
             effect_timer1[ channel ] = 1;
             bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
-            bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
+            bass_tdelta[ channel ] = bass_freq[ channel ] / fps;
             bass_timer[ channel ] = 0;
         }
+
+
+    float 
+        right = 0 ,
+        left = 0 ;
+
 
     if( effect_timer1[ channel ] ){
     
@@ -1285,15 +1290,15 @@ void Poly ( struct PlayState * state ){
     
         bass_delta[ channel ] += ( bass_tdelta[ channel ] - bass_delta[ channel ] ) / 1800;
         bass_timer[ channel ] += bass_delta[ channel ];
-        
+
+
         right = left = effect_timer1[ channel ];
 
-        left *= sin( bass_timer[ channel ] );
-        right *= sin( bass_timer[ channel ] * 1.01 );
+        float bass = bass_timer[ channel ];
+
+        right *= sin( bass * 1.01 );
+        left *= sin( bass );
     
-    } else {
-        left = 0;
-        right = 0;
     }
 
     addBuffer( left / 8 , right / 8 );
@@ -1301,6 +1306,7 @@ void Poly ( struct PlayState * state ){
 
     setFrame(0,0)
 }
+
 
 void Effect ( struct PlayState * state ){
 
@@ -1389,7 +1395,7 @@ void AcidBass ( struct PlayState * state ){
     if( state -> tick_changed ){
         
         bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
-        bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
+        bass_tdelta[ channel ] = bass_freq[ channel ] / fps;
         bass_timer[ channel ] = 0;
         
         effect_timer1[ channel ] = 1;
@@ -1445,7 +1451,7 @@ void Bass ( struct PlayState * state ){
 
     if( state -> tick_changed ){
         bass_freq[ channel ] = square( (float)( note + offset ) / 12.0F );
-        bass_tdelta[ channel ] = bass_freq[ channel ] / srate;
+        bass_tdelta[ channel ] = bass_freq[ channel ] / fps;
         bass_timer[ channel ] = 0;
         effect_timer1[ channel ] = 1;
     }
@@ -1646,6 +1652,10 @@ void ( * Instruments [] )( struct PlayState * ) =
 
 void play ( float * buffer , int length ){
 
+    static float 
+        recoder_left[ rec_size ] ,
+        recoder_right[ rec_size ] ;
+
     float left , right;
     
 
@@ -1720,22 +1730,22 @@ void play ( float * buffer , int length ){
 
         if( start_recorder ){
             
-            rec1[ rec_ptr ] = buffer[ offset + 0 ];
-            rec2[ rec_ptr ] = buffer[ offset + 1 ];
+            recoder_left[ recoder_frame ] = buffer[ offset + 0 ];
+            recoder_right[ recoder_frame ] = buffer[ offset + 1 ];
 
-            rec_ptr++;
+            recoder_frame++;
 
-            if( rec_ptr >= rec_size ){
+            if( recoder_frame >= rec_size ){
                 start_recorder = 0;
-                rec_ptr --;
+                recoder_frame --;
             }
         }
 
         if( rec_play ){
 
             putFlanger( 
-                rec1[ rec_ptr ] / 2 ,
-                rec2[ rec_ptr ] / 2
+                recoder_left[ recoder_frame ] / 2 ,
+                recoder_right[ recoder_frame ] / 2
             );
             
             left = 0;
@@ -1746,10 +1756,10 @@ void play ( float * buffer , int length ){
             buffer[ offset + 1 ] += right;
             buffer[ offset + 0 ] += left;
             
-            rec_ptr--;
+            recoder_frame--;
             
-            if( rec_ptr < 0 )
-                rec_ptr = rec_size - 1;
+            if( recoder_frame < 0 )
+                recoder_frame = rec_size - 1;
         }
 
         timer++;
@@ -1916,10 +1926,10 @@ int exportWAV ( const char * path ){
     word(2);
 
     // Frames Per Second
-    quad(srate);
+    quad(fps);
     
     //  Bytes Per Second
-    quad(srate * 2 * 4)
+    quad(fps * 2 * 4)
 
     //  Block Alignment
     word(2 * 4);
@@ -1962,7 +1972,7 @@ int exportWAV ( const char * path ){
 
 
     int frames = dataSize / ( 4 * 2 ) ,
-        seconds = frames / srate ;
+        seconds = frames / fps ;
 
 
     newline();
@@ -1998,7 +2008,7 @@ int playAudio (){
     a.channels = 2;
     a.samples = bufsize;
     a.format = AUDIO_F32;
-    a.freq = srate;
+    a.freq = fps;
 
     if( SDL_OpenAudio( & a , NULL ) < 0 ){
         printf( "Couldn't open audio: %s\n" , SDL_GetError() );
