@@ -9,7 +9,7 @@ Usage:
 
 Press CTRL+C to exit
 
-How to make: just run one of the MAKE_* scripts (currently only Linux, but scripts for other systems will be added later too)
+How to make: just run one of the MAKE_* scripts
 
 by NightRadio  
 https://warmplace.ru  

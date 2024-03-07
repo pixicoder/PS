@@ -1,7 +1,7 @@
 /*
     ps.c
     Single file synth + demo song
-    Copyright (C) 2005 - 2021 Alexander Zolotov <nightradio@gmail.com>
+    Copyright (C) 2005 - 2024 Alexander Zolotov <nightradio@gmail.com>
     WarmPlace.ru
 */
 
@@ -12,7 +12,7 @@
 #include <string.h>
 #include <signal.h>
 #include <math.h>
-#include "SDL2/SDL.h"
+#include <SDL2/SDL.h>
 
 #if defined(_WIN32) || defined(_WIN64)
     #include <windows.h>
@@ -1543,8 +1543,9 @@ int main( int argc, char* argv[] )
 	    out_mode = 1;
 	}
     }
-    printf( "\nNightRadio - P.S.\nnightradio@gmail.com\nWarmPlace.ru\n\n" );
-    printf( "Usage:\n  just play: ./ps\n  export to WAV: ./ps -o filename.wav\n" );
+    printf( "P.S. by NightRadio / WarmPlace.ru\n" );
+    printf( "(v1.1; build " __DATE__ "; " __TIME__ ")\n" );
+    printf( "Usage:\n just play: ps\n export to WAV: ps -o filename.wav\n" );
     printf( "Press CTRL+C to exit\n\n" );
     if( sound_init() ) return 1;
     while( !exit_request )

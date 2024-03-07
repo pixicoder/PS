@@ -1,1 +1,5 @@
-make CFLAGS="-O3" LDFLAGS="" LIBS="-lstdc++ -lSDL2"
+make CFLAGS="-O3 -I/Library/Frameworks/SDL2.framework/Headers -F/Library/Frameworks" LDFLAGS="" LIBS="-F/Library/Frameworks -framework SDL2 -rpath /Library/Frameworks"
+
+#Read more about macOS Dynamic Library Identification:
+# https://forums.developer.apple.com/forums/thread/736719
+# https://www.fullstaq.com/knowledge-hub/blogs/an-alternative-to-macos-dyld-library-path
