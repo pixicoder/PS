@@ -14,7 +14,7 @@ How to make: just run one of the MAKE_* scripts
 by NightRadio  
 https://warmplace.ru  
 nightradio@gmail.com  
-2005 - 2021
+2005 - 2024
 
 Please support my work:  
 https://warmplace.ru/donate
